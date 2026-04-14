@@ -69,26 +69,51 @@ export interface Listing {
   userId: string;
   companyName: string;
   createdAt: string;
-  
-  // Origin
+
+  // Ruta - Utovar
   originCountry: string;
   originCity: string;
-  
-  // Destination (for loads) or current location (for trucks)
+  originPostalCode?: string;
+
+  // Ruta - Istovar
   destinationCountry?: string;
   destinationCity?: string;
-  
-  // Dates
-  dateFrom: string;
-  dateTo?: string; // Optional for trucks availability range
+  destinationPostalCode?: string;
 
-  // Specs
+  // Datumi i vreme
+  dateFrom: string;
+  dateTo?: string;
+  loadingTime?: string;
+  unloadingTime?: string;
+
+  // Vozilo
   truckType: string;
-  capacity?: string; // Weight or dimensions
+  isFtl?: boolean; // full truck load vs groupage/LTL
+
+  // Detalji tereta / kapaciteta
+  capacity?: string;         // legacy text polje (backward compat)
+  weightTonnes?: number;     // težina u tonama
+  loadingMeters?: number;    // LDM - dužina utovara u metrima
+  volumeM3?: number;         // volumen u m³
+  loadType?: string;         // vrsta tereta
+  palletCount?: number;      // broj paleta
+  isStackable?: boolean;     // slaganje
+
+  // Načini utovara
+  loadingMethods?: string[]; // ['Zadnje', 'Bocno', 'Gornje']
+
+  // Posebni zahtevi
+  adrClasses?: string[];     // ADR klase opasne robe
+  temperatureMin?: number;   // min temperatura (za hladnjače)
+  temperatureMax?: number;   // max temperatura
+
+  // Cena i kontakt
   price?: number;
   currency?: string;
+  contactPhone?: string;
+  referenceNumber?: string;
   description?: string;
-  
+
   // Meta
   views: number;
   inquiries: number;
@@ -100,8 +125,11 @@ export interface Load extends Listing {
 
 export interface Truck extends Listing {
   type: 'truck';
+  weightCapacity?: number;  // nosivost kamiona u tonama
+  truckCount?: number;      // broj kamiona
+  adrCapable?: boolean;     // da li može ADR
 }
 
-// Helper types for forms
+// Helper types za forme
 export type CreateLoadData = Omit<Load, 'id' | 'userId' | 'createdAt' | 'companyName' | 'views' | 'inquiries' | 'type'>;
 export type CreateTruckData = Omit<Truck, 'id' | 'userId' | 'createdAt' | 'companyName' | 'views' | 'inquiries' | 'type'>;
