@@ -35,11 +35,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) {
-        fetchProfile(session.user.id)
+        await fetchProfile(session.user.id)
       }
       setLoading(false)
     })
@@ -48,36 +48,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state change:', event, session?.user?.id);
-        
+
         setSession(session)
         setUser(session?.user ?? null)
-        
+
         // Handle email confirmation redirect
         if (event === 'SIGNED_IN' && session?.user) {
-          // Check if this is coming from email confirmation
           const urlParams = new URLSearchParams(window.location.hash.substring(1));
-          const hasConfirmationParams = urlParams.has('access_token') || 
-                                       urlParams.has('type') || 
+          const hasConfirmationParams = urlParams.has('access_token') ||
+                                       urlParams.has('type') ||
                                        window.location.hash.includes('confirmation') ||
                                        window.location.hash.includes('email-confirmed');
-          
+
           if (hasConfirmationParams && !window.location.hash.includes('/email-confirmed')) {
             console.log('Email confirmation detected, redirecting to confirmation page');
-            // Clear the URL parameters and redirect
             window.location.href = '#/email-confirmed';
             return;
           }
         }
-        
+
         if (session?.user) {
-          // Don't await this to prevent blocking the auth flow
-          fetchProfile(session.user.id).catch(error => {
+          // Čekamo da se profil učita pre nego što ugasimo loading
+          await fetchProfile(session.user.id).catch(error => {
             console.error('Profile fetch failed in auth change:', error);
           });
         } else {
           setProfile(null)
         }
-        
+
         setLoading(false)
       }
     )
