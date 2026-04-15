@@ -7,7 +7,7 @@ import { ArrowLeftRight, AlertCircle } from 'lucide-react';
 export const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signIn, loading } = useAuth();
+  const { signIn, loading, isAuthenticated, isApproved: userApproved, profile } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -17,6 +17,13 @@ export const Login = () => {
 
   const from = location.state?.from?.pathname || '/dashboard';
   const isApproved = new URLSearchParams(location.search).get('approved') === 'true';
+
+  // Ako je korisnik već ulogovan, prebaci ga na dashboard
+  React.useEffect(() => {
+    if (!loading && isAuthenticated && profile) {
+      navigate(from, { replace: true });
+    }
+  }, [loading, isAuthenticated, profile]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
