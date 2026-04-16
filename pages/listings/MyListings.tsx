@@ -81,10 +81,10 @@ export const MyListings = () => {
       </div>
 
       {/* Tabovi */}
-      <div className="flex gap-1 bg-surface border border-border rounded-lg p-1 w-fit">
+      <div className="flex gap-1 bg-surface border border-border rounded-lg p-1 w-full sm:w-fit">
         <button
           onClick={() => setActiveTab('loads')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+          className={`flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
             activeTab === 'loads'
               ? 'bg-brand-500 text-black'
               : 'text-text-muted hover:text-text-main'
@@ -95,7 +95,7 @@ export const MyListings = () => {
         </button>
         <button
           onClick={() => setActiveTab('trucks')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+          className={`flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
             activeTab === 'trucks'
               ? 'bg-brand-500 text-black'
               : 'text-text-muted hover:text-text-main'

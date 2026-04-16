@@ -79,6 +79,7 @@ export const LoadBoard = () => {
   const [selectedLoad, setSelectedLoad] = useState<Load | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [filter, setFilter] = useState(INITIAL_FILTER);
+  const [sort, setSort] = useState('newest');
 
   const fetchLoads = async (showRefresh = false) => {
     if (showRefresh) setRefreshing(true);
@@ -126,6 +127,17 @@ export const LoadBoard = () => {
     return true;
   });
 
+  const sortedLoads = [...filteredLoads].sort((a, b) => {
+    switch (sort) {
+      case 'oldest':     return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      case 'date_asc':   return new Date(a.dateFrom).getTime() - new Date(b.dateFrom).getTime();
+      case 'date_desc':  return new Date(b.dateFrom).getTime() - new Date(a.dateFrom).getTime();
+      case 'price_asc':  return (a.price ?? Infinity) - (b.price ?? Infinity);
+      case 'price_desc': return (b.price ?? -Infinity) - (a.price ?? -Infinity);
+      default:           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    }
+  });
+
   const resetFilters = () => {
     setFilter(INITIAL_FILTER);
     setShowAdvanced(false);
@@ -149,10 +161,22 @@ export const LoadBoard = () => {
         <div>
           <h1 className="text-2xl font-bold text-text-main">Berza Tereta</h1>
           <p className="text-text-muted text-sm mt-0.5">
-            {loadingData ? 'Učitavam...' : `${filteredLoads.length} ${filteredLoads.length === 1 ? 'oglas' : 'oglasa'}`}
+            {loadingData ? 'Učitavam...' : `${sortedLoads.length} ${sortedLoads.length === 1 ? 'oglas' : 'oglasa'}`}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <select
+            value={sort}
+            onChange={e => setSort(e.target.value)}
+            className="h-9 rounded-lg border border-border bg-surface text-text-muted text-xs font-medium px-3 cursor-pointer hover:border-text-muted transition-colors focus:outline-none focus:border-brand-400"
+          >
+            <option value="newest">Najnoviji</option>
+            <option value="oldest">Najstariji</option>
+            <option value="date_asc">Datum polaska: najbliži</option>
+            <option value="date_desc">Datum polaska: najdalji</option>
+            <option value="price_asc">Cena: rastuće</option>
+            <option value="price_desc">Cena: opadajuće</option>
+          </select>
           <button
             onClick={() => fetchLoads(true)}
             disabled={refreshing}
@@ -375,7 +399,7 @@ export const LoadBoard = () => {
         <div className="space-y-4 pt-2">
           {[1, 2, 3].map(i => (
             <Card key={i} className="p-5 animate-pulse">
-              <div className="flex gap-6">
+              <div className="flex flex-col sm:flex-row gap-4">
                 <div className="flex-1 space-y-3">
                   <div className="h-4 bg-surface-highlight rounded w-24" />
                   <div className="h-6 bg-surface-highlight rounded w-48" />
@@ -384,7 +408,7 @@ export const LoadBoard = () => {
                     <div className="h-7 bg-surface-highlight rounded w-20" />
                   </div>
                 </div>
-                <div className="w-48 space-y-3">
+                <div className="w-full sm:w-48 space-y-3">
                   <div className="h-4 bg-surface-highlight rounded w-32" />
                   <div className="h-9 bg-surface-highlight rounded" />
                 </div>
@@ -397,7 +421,7 @@ export const LoadBoard = () => {
       {/* List */}
       {!loadingData && (
         <div className="space-y-4 pt-2">
-          {filteredLoads.map(load => {
+          {sortedLoads.map(load => {
             const canSeePhone = canViewContact(load.userId);
             const hasAdr = load.adrClasses && load.adrClasses.length > 0;
             const hasTemp = load.temperatureMin != null || load.temperatureMax != null;
@@ -424,7 +448,7 @@ export const LoadBoard = () => {
                     <div className="flex items-center gap-4 sm:gap-8">
                       <div className="min-w-0">
                         <div className="text-text-muted text-xs font-semibold uppercase tracking-wider mb-1">Utovar</div>
-                        <p className="font-bold text-lg text-text-main leading-tight">{getFlagEmoji(load.originCountry)} {load.originCity}</p>
+                        <p className="font-bold text-lg text-text-main leading-tight truncate">{getFlagEmoji(load.originCountry)} {load.originCity}</p>
                         <p className="text-sm text-text-muted">
                           {load.originPostalCode && <span className="font-mono mr-1">{load.originPostalCode}</span>}
                           {load.originCountry}
@@ -444,7 +468,7 @@ export const LoadBoard = () => {
 
                       <div className="text-right min-w-0">
                         <div className="text-text-muted text-xs font-semibold uppercase tracking-wider mb-1">Istovar</div>
-                        <p className="font-bold text-lg text-text-main leading-tight">{getFlagEmoji(load.destinationCountry || '')} {load.destinationCity || '—'}</p>
+                        <p className="font-bold text-lg text-text-main leading-tight truncate">{getFlagEmoji(load.destinationCountry || '')} {load.destinationCity || '—'}</p>
                         <p className="text-sm text-text-muted">
                           {load.destinationPostalCode && <span className="font-mono mr-1">{load.destinationPostalCode}</span>}
                           {load.destinationCountry}
@@ -542,7 +566,7 @@ export const LoadBoard = () => {
             );
           })}
 
-          {filteredLoads.length === 0 && !loadingData && (
+          {sortedLoads.length === 0 && !loadingData && (
             <div className="text-center py-20 bg-surface rounded-xl border border-dashed border-border">
               <Package className="h-10 w-10 text-text-muted mx-auto mb-3 opacity-50" />
               <p className="text-text-main font-medium">Nema tura koje odgovaraju pretrazi</p>

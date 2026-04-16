@@ -269,7 +269,7 @@ export const CreateLoad = () => {
         <Card>
           <SectionHeader icon={MapPin} title="Ruta" subtitle="Mesta utovara i istovara" />
 
-          <div className="grid md:grid-cols-2 gap-8">
+          <div className="grid md:grid-cols-2 gap-4 md:gap-8">
             {/* Utovar */}
             <div className="space-y-3">
               <p className="text-xs font-bold text-brand-400 uppercase tracking-widest">Utovar</p>

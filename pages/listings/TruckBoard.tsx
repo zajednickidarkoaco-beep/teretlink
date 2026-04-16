@@ -57,6 +57,7 @@ export const TruckBoard = () => {
   const [selectedTruck, setSelectedTruck] = useState<TruckType | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [filter, setFilter] = useState(INITIAL_FILTER);
+  const [sort, setSort] = useState('newest');
 
   const fetchTrucks = async (showRefresh = false) => {
     if (showRefresh) setRefreshing(true);
@@ -99,6 +100,15 @@ export const TruckBoard = () => {
     return true;
   });
 
+  const sortedTrucks = [...filteredTrucks].sort((a, b) => {
+    switch (sort) {
+      case 'oldest':    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      case 'date_asc':  return new Date(a.dateFrom).getTime() - new Date(b.dateFrom).getTime();
+      case 'date_desc': return new Date(b.dateFrom).getTime() - new Date(a.dateFrom).getTime();
+      default:          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    }
+  });
+
   const resetFilters = () => {
     setFilter(INITIAL_FILTER);
     setShowAdvanced(false);
@@ -121,10 +131,20 @@ export const TruckBoard = () => {
         <div>
           <h1 className="text-2xl font-bold text-text-main">Berza Kamiona</h1>
           <p className="text-text-muted text-sm mt-0.5">
-            {loadingData ? 'Učitavam...' : `${filteredTrucks.length} ${filteredTrucks.length === 1 ? 'oglas' : 'oglasa'}`}
+            {loadingData ? 'Učitavam...' : `${sortedTrucks.length} ${sortedTrucks.length === 1 ? 'oglas' : 'oglasa'}`}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <select
+            value={sort}
+            onChange={e => setSort(e.target.value)}
+            className="h-9 rounded-lg border border-border bg-surface text-text-muted text-xs font-medium px-3 cursor-pointer hover:border-text-muted transition-colors focus:outline-none focus:border-brand-400"
+          >
+            <option value="newest">Najnoviji</option>
+            <option value="oldest">Najstariji</option>
+            <option value="date_asc">Slobodan od: najbliži</option>
+            <option value="date_desc">Slobodan od: najdalji</option>
+          </select>
           <button
             onClick={() => fetchTrucks(true)}
             disabled={refreshing}
@@ -302,7 +322,7 @@ export const TruckBoard = () => {
         <div className="space-y-4 pt-2">
           {[1, 2, 3].map(i => (
             <Card key={i} className="p-5 animate-pulse">
-              <div className="flex gap-6">
+              <div className="flex flex-col sm:flex-row gap-4">
                 <div className="flex-1 space-y-3">
                   <div className="h-4 bg-surface-highlight rounded w-24" />
                   <div className="h-6 bg-surface-highlight rounded w-48" />
@@ -311,7 +331,7 @@ export const TruckBoard = () => {
                     <div className="h-7 bg-surface-highlight rounded w-20" />
                   </div>
                 </div>
-                <div className="w-48 space-y-3">
+                <div className="w-full sm:w-48 space-y-3">
                   <div className="h-4 bg-surface-highlight rounded w-32" />
                   <div className="h-9 bg-surface-highlight rounded" />
                 </div>
@@ -324,7 +344,7 @@ export const TruckBoard = () => {
       {/* List */}
       {!loadingData && (
         <div className="space-y-4 pt-2">
-          {filteredTrucks.map(truck => {
+          {sortedTrucks.map(truck => {
             const canSeePhone = canViewContact(truck.userId);
             const hasAdr = truck.adrCapable || (truck.adrClasses && truck.adrClasses.length > 0);
             const hasTemp = truck.temperatureMin != null || truck.temperatureMax != null;
@@ -353,7 +373,7 @@ export const TruckBoard = () => {
                     <div className="flex items-center gap-4 sm:gap-8">
                       <div className="min-w-0">
                         <div className="text-text-muted text-xs font-semibold uppercase tracking-wider mb-1">Lokacija</div>
-                        <p className="font-bold text-lg text-text-main leading-tight">{getFlagEmoji(truck.originCountry)} {truck.originCity}</p>
+                        <p className="font-bold text-lg text-text-main leading-tight truncate">{getFlagEmoji(truck.originCountry)} {truck.originCity}</p>
                         <p className="text-sm text-text-muted">
                           {truck.originPostalCode && <span className="font-mono mr-1">{truck.originPostalCode}</span>}
                           {truck.originCountry}
@@ -462,7 +482,7 @@ export const TruckBoard = () => {
             );
           })}
 
-          {filteredTrucks.length === 0 && !loadingData && (
+          {sortedTrucks.length === 0 && !loadingData && (
             <div className="text-center py-20 bg-surface rounded-xl border border-dashed border-border">
               <Truck className="h-10 w-10 text-text-muted mx-auto mb-3 opacity-50" />
               <p className="text-text-main font-medium">Nema kamiona koji odgovaraju pretrazi</p>
