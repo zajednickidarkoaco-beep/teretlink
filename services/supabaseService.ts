@@ -138,7 +138,7 @@ export class SupabaseService {
 
     if (error) throw error
 
-    return {
+    const load: Load = {
       id: result.id,
       userId: result.user_id,
       type: 'load',
@@ -175,6 +175,15 @@ export class SupabaseService {
       inquiries: result.inquiries,
       createdAt: result.created_at,
     }
+
+    // Pošalji email alarm korisnicima čiji kamioni odgovaraju ovoj turi (fire-and-forget)
+    fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/match-alert`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY },
+      body: JSON.stringify({ type: 'load', listing: result }),
+    }).catch(() => {})
+
+    return load
   }
 
   // Trucks
@@ -289,7 +298,7 @@ export class SupabaseService {
 
     if (error) throw error
 
-    return {
+    const truck: Truck = {
       id: result.id,
       userId: result.user_id,
       type: 'truck',
@@ -318,6 +327,15 @@ export class SupabaseService {
       inquiries: result.inquiries,
       createdAt: result.created_at,
     }
+
+    // Pošalji email alarm korisnicima čije ture odgovaraju ovom kamionu (fire-and-forget)
+    fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/match-alert`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY },
+      body: JSON.stringify({ type: 'truck', listing: result }),
+    }).catch(() => {})
+
+    return truck
   }
 
   // Users (for admin)
