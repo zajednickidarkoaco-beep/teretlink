@@ -7,6 +7,7 @@ import { Login } from './pages/auth/Login';
 import { Register } from './pages/auth/Register';
 import { ForgotPassword } from './pages/auth/ForgotPassword';
 import { EmailConfirmed } from './pages/auth/EmailConfirmed';
+import { ResetPassword } from './pages/auth/ResetPassword';
 import { PendingApproval } from './pages/PendingApproval';
 import { Pricing } from './pages/Pricing';
 import { AppLayout } from './components/layout/AppLayout';
@@ -15,6 +16,7 @@ import { LoadBoard } from './pages/listings/LoadBoard';
 import { TruckBoard } from './pages/listings/TruckBoard';
 import { CreateLoad } from './pages/listings/CreateLoad';
 import { CreateTruck } from './pages/listings/CreateTruck';
+import { MyListings } from './pages/listings/MyListings';
 import { AdminPanel } from './pages/admin/AdminPanel';
 
 const App = () => {
@@ -28,6 +30,7 @@ const App = () => {
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/email-confirmed" element={<EmailConfirmed />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/pending-approval" element={<PendingApproval />} />
 
@@ -43,6 +46,7 @@ const App = () => {
             <Route path="/trucks" element={<TruckBoard />} />
             <Route path="/post-load" element={<CreateLoad />} />
             <Route path="/post-truck" element={<CreateTruck />} />
+            <Route path="/my-listings" element={<MyListings />} />
             
             {/* Admin routes - nested within approved routes */}
             <Route path="/admin" element={

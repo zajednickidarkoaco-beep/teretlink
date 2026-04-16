@@ -34,85 +34,119 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        await fetchProfile(session.user.id)
-      }
-      setLoading(false)
-    })
+    let mounted = true
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state change:', event, session?.user?.id);
+    // Korak 1: učitaj početnu sesiju direktno (bez abort problema)
+    const init = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!mounted) return
 
         setSession(session)
         setUser(session?.user ?? null)
 
-        // Handle email confirmation redirect
+        if (session?.user) {
+          await fetchProfile(session.user.id)
+        }
+      } catch (err) {
+        console.error('Greška pri init sesiji:', err)
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+
+    init()
+
+    // Korak 2: slušaj samo naknadne promene (login, logout) — preskoči INITIAL_SESSION
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (!mounted) return
+        if (event === 'INITIAL_SESSION') return // već obrađeno u init()
+
+        console.log('Auth state change:', event, session?.user?.id)
+
+        setSession(session)
+        setUser(session?.user ?? null)
+
+        // Proveri email potvrdu
         if (event === 'SIGNED_IN' && session?.user) {
-          const urlParams = new URLSearchParams(window.location.hash.substring(1));
+          const urlParams = new URLSearchParams(window.location.hash.substring(1))
           const hasConfirmationParams = urlParams.has('access_token') ||
                                        urlParams.has('type') ||
                                        window.location.hash.includes('confirmation') ||
-                                       window.location.hash.includes('email-confirmed');
+                                       window.location.hash.includes('email-confirmed')
 
           if (hasConfirmationParams && !window.location.hash.includes('/email-confirmed')) {
-            console.log('Email confirmation detected, redirecting to confirmation page');
-            window.location.href = '#/email-confirmed';
-            return;
+            console.log('Email potvrda detektovana, preusmeravam...')
+            window.location.href = '#/email-confirmed'
+            return
           }
         }
 
         if (session?.user) {
-          // Čekamo da se profil učita pre nego što ugasimo loading
           await fetchProfile(session.user.id).catch(error => {
-            console.error('Profile fetch failed in auth change:', error);
-          });
+            console.error('Greška pri učitavanju profila:', error)
+          })
         } else {
           setProfile(null)
         }
 
-        setLoading(false)
+        if (mounted) setLoading(false)
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   const fetchProfile = async (userId: string) => {
     try {
-      console.log('Fetching profile for user:', userId);
-      
-      // Simple, direct profile fetch
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
+      console.log('Učitavam profil za korisnika:', userId)
 
-      console.log('Profile fetch result:', { profileData, profileError });
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-      if (profileError) {
-        console.error('Profile fetch error:', profileError);
-        return;
+      // Uzmi token direktno iz localStorage da bi zaobišli Supabase abort mehanizam
+      const storageKey = `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`
+      let token = supabaseKey // fallback na anon key
+      try {
+        const stored = localStorage.getItem(storageKey)
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          token = parsed?.access_token || supabaseKey
+        }
+      } catch (_) {}
+
+      // Direktan REST poziv — ne koristi Supabase JS klijent koji abortuje zahteve
+      const res = await fetch(
+        `${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=*`,
+        {
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${token}`,
+          }
+        }
+      )
+
+      if (!res.ok) {
+        console.error('Greška pri učitavanju profila:', res.status, res.statusText)
+        setProfile(null)
+        return
       }
+
+      const rows = await res.json()
+      const profileData = Array.isArray(rows) ? rows[0] : null
+
+      console.log('Profil učitan:', profileData)
 
       if (!profileData) {
-        console.log('No profile found for user - user may have been deleted or needs to confirm email');
-        // If user is authenticated but has no profile, sign them out
-        if (user) {
-          console.log('User authenticated but no profile found - signing out');
-          await signOut();
-        }
-        setProfile(null);
-        return;
+        console.log('Profil nije pronađen za korisnika')
+        setProfile(null)
+        return
       }
 
-      // Create profile without company data first
       const basicProfile: AppUser = {
         id: profileData.id,
         email: profileData.email,
@@ -126,54 +160,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         mobilePhone: profileData.mobile_phone,
         phoneCountryCode: profileData.phone_country_code,
       }
-      
-      setProfile(basicProfile);
 
-      // Fetch company data separately (non-blocking)
+      setProfile(basicProfile)
+
+      // Učitaj podatke o firmi odvojeno (ne blokira)
       setTimeout(async () => {
         try {
-          const { data: companyData } = await supabase
-            .from('companies')
-            .select('*')
-            .eq('user_id', userId)
-            .maybeSingle();
-
-          if (companyData) {
-            const fullProfile: AppUser = {
-              ...basicProfile,
-              company: {
-                name: companyData.name,
-                registrationNumber: companyData.registration_number,
-                category: companyData.category as any,
-                country: companyData.country,
-                city: companyData.city,
-                address: companyData.address,
-                phone: companyData.phone,
-                phoneCountryCode: companyData.phone_country_code,
-                email: companyData.email,
-                fax: companyData.fax,
-                faxCountryCode: companyData.fax_country_code,
-                website: companyData.website,
+          const companyRes = await fetch(
+            `${supabaseUrl}/rest/v1/companies?user_id=eq.${encodeURIComponent(userId)}&select=*`,
+            {
+              headers: {
+                'apikey': supabaseKey,
+                'Authorization': `Bearer ${token}`,
               }
             }
-            setProfile(fullProfile);
+          )
+          if (companyRes.ok) {
+            const companyRows = await companyRes.json()
+            const companyData = Array.isArray(companyRows) ? companyRows[0] : null
+            if (companyData) {
+              setProfile({
+                ...basicProfile,
+                company: {
+                  name: companyData.name,
+                  registrationNumber: companyData.registration_number,
+                  category: companyData.category as any,
+                  country: companyData.country,
+                  city: companyData.city,
+                  address: companyData.address,
+                  phone: companyData.phone,
+                  phoneCountryCode: companyData.phone_country_code,
+                  email: companyData.email,
+                  fax: companyData.fax,
+                  faxCountryCode: companyData.fax_country_code,
+                  website: companyData.website,
+                }
+              })
+            }
           }
-        } catch (companyError) {
-          // Company fetch failed, but profile is still valid
+        } catch (_) {
+          // Firma nije učitana, profil je i dalje validan
         }
-      }, 500);
-      
+      }, 500)
+
     } catch (error) {
-      console.error('Error fetching profile:', error);
-      
-      // Don't create fallback profile for real users
-      if (error instanceof Error && error.message.includes('AbortError')) {
-        console.log('Request was aborted, will retry...');
-        return;
-      }
-      
-      // Set profile to null so user knows there's an issue
-      setProfile(null);
+      console.error('Greška pri učitavanju profila:', error)
+      setProfile(null)
     }
   }
 

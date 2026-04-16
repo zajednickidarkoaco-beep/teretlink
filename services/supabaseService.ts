@@ -50,6 +50,54 @@ export class SupabaseService {
     }))
   }
 
+  static async getUserLoads(userId: string): Promise<Load[]> {
+    const { data, error } = await supabase
+      .from('loads')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+
+    return data.map(load => ({
+      id: load.id,
+      userId: load.user_id,
+      type: 'load' as const,
+      companyName: load.company_name,
+      originCountry: load.origin_country,
+      originCity: load.origin_city,
+      originPostalCode: load.origin_postal_code,
+      destinationCountry: load.destination_country,
+      destinationCity: load.destination_city,
+      destinationPostalCode: load.destination_postal_code,
+      dateFrom: load.date_from,
+      dateTo: load.date_to,
+      loadingTime: load.loading_time,
+      unloadingTime: load.unloading_time,
+      truckType: load.truck_type,
+      isFtl: load.is_ftl,
+      capacity: load.capacity,
+      weightTonnes: load.weight_tonnes,
+      loadingMeters: load.loading_meters,
+      volumeM3: load.volume_m3,
+      loadType: load.load_type,
+      palletCount: load.pallet_count,
+      isStackable: load.is_stackable,
+      loadingMethods: load.loading_methods,
+      adrClasses: load.adr_classes,
+      temperatureMin: load.temperature_min,
+      temperatureMax: load.temperature_max,
+      price: load.price,
+      currency: load.currency,
+      contactPhone: load.contact_phone,
+      referenceNumber: load.reference_number,
+      description: load.description,
+      views: load.views,
+      inquiries: load.inquiries,
+      createdAt: load.created_at,
+    }))
+  }
+
   static async createLoad(userId: string, companyName: string, data: CreateLoadData): Promise<Load> {
     const { data: result, error } = await supabase
       .from('loads')
@@ -134,6 +182,46 @@ export class SupabaseService {
     const { data, error } = await supabase
       .from('trucks')
       .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+
+    return data.map(truck => ({
+      id: truck.id,
+      userId: truck.user_id,
+      type: 'truck' as const,
+      companyName: truck.company_name,
+      originCountry: truck.origin_country,
+      originCity: truck.origin_city,
+      originPostalCode: truck.origin_postal_code,
+      destinationCountry: truck.destination_country,
+      destinationCity: truck.destination_city,
+      destinationPostalCode: truck.destination_postal_code,
+      dateFrom: truck.date_from,
+      dateTo: truck.date_to,
+      truckType: truck.truck_type,
+      capacity: truck.capacity,
+      weightCapacity: truck.weight_capacity,
+      loadingMeters: truck.loading_meters,
+      truckCount: truck.truck_count,
+      adrCapable: truck.adr_capable,
+      adrClasses: truck.adr_classes,
+      loadingMethods: truck.loading_methods,
+      temperatureMin: truck.temperature_min,
+      temperatureMax: truck.temperature_max,
+      contactPhone: truck.contact_phone,
+      description: truck.description,
+      views: truck.views,
+      inquiries: truck.inquiries,
+      createdAt: truck.created_at,
+    }))
+  }
+
+  static async getUserTrucks(userId: string): Promise<Truck[]> {
+    const { data, error } = await supabase
+      .from('trucks')
+      .select('*')
+      .eq('user_id', userId)
       .order('created_at', { ascending: false })
 
     if (error) throw error
@@ -334,6 +422,16 @@ export class SupabaseService {
     return usersWithCompanies
   }
 
+  static async deleteLoad(loadId: string): Promise<void> {
+    const { error } = await supabase.from('loads').delete().eq('id', loadId)
+    if (error) throw error
+  }
+
+  static async deleteTruck(truckId: string): Promise<void> {
+    const { error } = await supabase.from('trucks').delete().eq('id', truckId)
+    if (error) throw error
+  }
+
   static async updateUserStatus(userId: string, status: 'approved' | 'rejected', approvedBy: string, rejectionReason?: string): Promise<void> {
     const { error } = await supabase
       .from('profiles')
@@ -356,33 +454,29 @@ export class SupabaseService {
 
     if (!userData) return
 
-    // Send email notification
+    // Pošalji email notifikaciju preko Edge Function
     try {
-      if (status === 'approved') {
-        // Send approval email using Supabase Auth
-        await supabase.auth.admin.generateLink({
-          type: 'magiclink',
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData?.session?.access_token
+
+      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-notification-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
           email: userData.email,
-          options: {
-            redirectTo: `${window.location.origin}/#/login?approved=true`
-          }
-        })
-        
-        console.log(`Approval email sent to ${userData.email}`)
-      } else if (status === 'rejected') {
-        // For rejection, we'll use a simple approach since we can't send custom emails easily
-        // In a real app, you'd use a proper email service like SendGrid, Mailgun, etc.
-        console.log(`User ${userData.email} was rejected - in production, send rejection email here`)
-        
-        const reasonText = rejectionReason ? `\n\nRazlog odbijanja: ${rejectionReason}` : '';
-        
-        // You could also use Supabase Edge Functions to send custom emails
-        // For now, we'll just log it
-        alert(`Korisnik ${userData.name} (${userData.email}) je odbačen.${reasonText}\n\nU produkciji bi mu bio poslat email o odbacivanju sa razlogom.`)
-      }
+          name: userData.name,
+          status,
+          rejectionReason,
+        }),
+      })
+
+      console.log(`Email notifikacija poslata na ${userData.email}`)
     } catch (emailError) {
-      console.error('Failed to send notification email:', emailError)
-      // Don't throw error - user status is still updated even if email fails
+      console.error('Greška pri slanju email notifikacije:', emailError)
+      // Ne bacamo grešku — status je i dalje ažuriran
     }
   }
 

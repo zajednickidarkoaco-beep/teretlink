@@ -1,17 +1,30 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, Input, Card } from '../../components/UIComponents';
-import { ArrowLeftRight, ArrowLeft, CheckCircle } from 'lucide-react';
+import { ArrowLeftRight, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 export const ForgotPassword = () => {
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Integrate with Supabase password reset
-    // await supabase.auth.resetPasswordForEmail(email)
-    setSubmitted(true);
+    setError('');
+    setIsLoading(true);
+
+    try {
+      const redirectTo = `${window.location.origin}/#/reset-password`;
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+      if (error) throw error;
+      setSubmitted(true);
+    } catch (err: any) {
+      setError('Greška pri slanju emaila. Proverite da li je email adresa ispravna.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -45,8 +58,15 @@ export const ForgotPassword = () => {
                 placeholder="ime@firma.com"
               />
               
-              <Button type="submit" className="w-full h-11 text-sm font-bold shadow-glow uppercase tracking-wide" size="md" variant="primary">
-                Pošalji link za resetovanje
+              {error && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
+                  <span className="text-red-500 text-sm">{error}</span>
+                </div>
+              )}
+
+              <Button type="submit" disabled={isLoading} className="w-full h-11 text-sm font-bold shadow-glow uppercase tracking-wide" size="md" variant="primary">
+                {isLoading ? 'Slanje...' : 'Pošalji link za resetovanje'}
               </Button>
 
               <Link to="/login" className="flex items-center justify-center gap-2 text-sm text-text-muted hover:text-text-main transition-colors">
