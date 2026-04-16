@@ -18,6 +18,7 @@ import { CreateLoad } from './pages/listings/CreateLoad';
 import { CreateTruck } from './pages/listings/CreateTruck';
 import { MyListings } from './pages/listings/MyListings';
 import { AdminPanel } from './pages/admin/AdminPanel';
+import { Profile } from './pages/profile/Profile';
 
 const App = () => {
   return (
@@ -47,6 +48,7 @@ const App = () => {
             <Route path="/post-load" element={<CreateLoad />} />
             <Route path="/post-truck" element={<CreateTruck />} />
             <Route path="/my-listings" element={<MyListings />} />
+            <Route path="/profile" element={<Profile />} />
             
             {/* Admin routes - nested within approved routes */}
             <Route path="/admin" element={

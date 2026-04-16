@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Truck, Package, Shield, CreditCard, LogOut, ArrowLeftRight, Sun, Moon, List } from 'lucide-react';
+import { LayoutDashboard, Truck, Package, Shield, CreditCard, LogOut, ArrowLeftRight, Sun, Moon, List, UserCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { cn } from '../UIComponents';
 
@@ -66,6 +66,10 @@ export const Sidebar = () => {
           <NavLink to="/my-listings" className={navItemClass}>
             <List className="h-4 w-4" />
             Moje objave
+          </NavLink>
+          <NavLink to="/profile" className={navItemClass}>
+            <UserCircle className="h-4 w-4" />
+            Moj profil
           </NavLink>
 
           <div className="pt-8 pb-3">

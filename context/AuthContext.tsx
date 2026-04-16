@@ -19,6 +19,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<any>
   signOut: () => Promise<void>
   updateProfile: (updates: Partial<AppUser>) => Promise<void>
+  refreshProfile: () => Promise<void>
   isAuthenticated: boolean
   isApproved: boolean
   isAdmin: boolean
@@ -405,6 +406,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await fetchProfile(user.id)
   }
 
+  const refreshProfile = async () => {
+    if (user) await fetchProfile(user.id)
+  }
+
   const canViewContact = (targetUserId: string) => {
     if (!profile) return false
     if (profile.role === 'admin') return true
@@ -428,6 +433,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       signIn,
       signOut,
       updateProfile,
+      refreshProfile,
       isAuthenticated,
       isApproved,
       isAdmin,
