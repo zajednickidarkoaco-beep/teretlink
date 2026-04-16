@@ -4,13 +4,17 @@ import { useAuth } from '../../context/AuthContext';
 import { UserStatus } from '../../types';
 import { Load, Truck } from '../../types';
 import { Card, Button, Badge } from '../../components/UIComponents';
-import { Package, Truck as TruckIcon, Activity, Lock, TrendingUp, Plus, ArrowUpRight, Trash2 } from 'lucide-react';
+import { Package, Truck as TruckIcon, Activity, Lock, TrendingUp, Plus, ArrowUpRight, Zap, MapPin, Calendar } from 'lucide-react';
 import { SupabaseService } from '../../services/supabaseService';
+import { findLoadsMatchingTrucks, findTrucksMatchingLoads } from '../../utils/matching';
+import { getFlagEmoji } from '../../utils/countries';
 
 export const Overview = () => {
   const { profile, user } = useAuth();
   const [myLoads, setMyLoads] = useState<Load[]>([]);
   const [myTrucks, setMyTrucks] = useState<Truck[]>([]);
+  const [matchedLoads, setMatchedLoads] = useState<Load[]>([]);
+  const [matchedTrucks, setMatchedTrucks] = useState<Truck[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -18,12 +22,16 @@ export const Overview = () => {
 
     const fetchMyData = async () => {
       try {
-        const [loads, trucks] = await Promise.all([
+        const [loads, trucks, allLoads, allTrucks] = await Promise.all([
           SupabaseService.getUserLoads(user.id),
           SupabaseService.getUserTrucks(user.id),
+          SupabaseService.getLoads(),
+          SupabaseService.getTrucks(),
         ]);
         setMyLoads(loads);
         setMyTrucks(trucks);
+        setMatchedLoads(findLoadsMatchingTrucks(allLoads, trucks, user.id).slice(0, 3));
+        setMatchedTrucks(findTrucksMatchingLoads(allTrucks, loads, user.id).slice(0, 3));
       } catch (err) {
         console.error('Greška pri učitavanju objava:', err);
       } finally {
@@ -250,6 +258,110 @@ export const Overview = () => {
           )}
         </div>
       </div>
+      {/* Pametno podudaranje */}
+      {!loading && (matchedLoads.length > 0 || matchedTrucks.length > 0) && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 px-1">
+            <Zap className="h-4 w-4 text-brand-400" />
+            <h3 className="font-bold text-text-main text-sm uppercase tracking-wide">Preporučeno za vas</h3>
+            <span className="text-[10px] text-text-muted">— automatsko podudaranje vaših ruta</span>
+          </div>
+
+          {/* Ture koje odgovaraju kamionima */}
+          {matchedLoads.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs text-text-muted px-1 font-medium">
+                Ture koje odgovaraju vašim kamionima ({matchedLoads.length})
+              </p>
+              {matchedLoads.map(load => (
+                <Link to="/loads" key={load.id}>
+                  <Card className="p-4 hover:border-brand-400/40 transition-colors cursor-pointer">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="flex items-center gap-1 text-[10px] font-bold text-brand-400 bg-brand-400/10 px-2 py-0.5 rounded-full border border-brand-400/20">
+                            <Zap className="h-3 w-3" /> Odgovara
+                          </span>
+                          <Badge variant="info">TURA</Badge>
+                        </div>
+                        <p className="font-bold text-text-main text-sm flex items-center gap-2 truncate">
+                          <MapPin className="h-3.5 w-3.5 text-text-muted flex-shrink-0" />
+                          {getFlagEmoji(load.originCountry)} {load.originCity}
+                          <span className="text-text-muted">→</span>
+                          {getFlagEmoji(load.destinationCountry || '')} {load.destinationCity || 'Bilo gde'}
+                        </p>
+                        <p className="text-[10px] text-text-muted mt-0.5 flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {new Date(load.dateFrom).toLocaleDateString('sr-RS')}
+                          {' · '}{load.truckType}
+                          {' · '}{load.companyName}
+                        </p>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="font-bold text-text-main font-mono text-sm">
+                          {load.price ? `${load.price} ${load.currency}` : 'Na upit'}
+                        </p>
+                      </div>
+                    </div>
+                  </Card>
+                </Link>
+              ))}
+              <div className="text-right">
+                <Link to="/loads" className="text-[10px] text-brand-500 hover:text-brand-400 font-bold uppercase tracking-widest flex items-center gap-1 justify-end">
+                  Prikaži sve ture <ArrowUpRight className="h-3 w-3" />
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {/* Kamioni koji odgovaraju turama */}
+          {matchedTrucks.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs text-text-muted px-1 font-medium">
+                Kamioni koji odgovaraju vašim turama ({matchedTrucks.length})
+              </p>
+              {matchedTrucks.map(truck => (
+                <Link to="/trucks" key={truck.id}>
+                  <Card className="p-4 hover:border-brand-400/40 transition-colors cursor-pointer">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="flex items-center gap-1 text-[10px] font-bold text-brand-400 bg-brand-400/10 px-2 py-0.5 rounded-full border border-brand-400/20">
+                            <Zap className="h-3 w-3" /> Odgovara
+                          </span>
+                          <Badge variant="success">KAMION</Badge>
+                        </div>
+                        <p className="font-bold text-text-main text-sm flex items-center gap-2 truncate">
+                          <MapPin className="h-3.5 w-3.5 text-text-muted flex-shrink-0" />
+                          {getFlagEmoji(truck.originCountry)} {truck.originCity}
+                          <span className="text-text-muted">→</span>
+                          {getFlagEmoji(truck.destinationCountry || '')} {truck.destinationCity || 'Bilo gde'}
+                        </p>
+                        <p className="text-[10px] text-text-muted mt-0.5 flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {new Date(truck.dateFrom).toLocaleDateString('sr-RS')}
+                          {' · '}{truck.truckType}
+                          {' · '}{truck.companyName}
+                        </p>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-xs text-text-muted font-medium">
+                          {truck.weightCapacity ? `${truck.weightCapacity}t` : ''}
+                        </p>
+                      </div>
+                    </div>
+                  </Card>
+                </Link>
+              ))}
+              <div className="text-right">
+                <Link to="/trucks" className="text-[10px] text-brand-500 hover:text-brand-400 font-bold uppercase tracking-widest flex items-center gap-1 justify-end">
+                  Prikaži sve kamione <ArrowUpRight className="h-3 w-3" />
+                </Link>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

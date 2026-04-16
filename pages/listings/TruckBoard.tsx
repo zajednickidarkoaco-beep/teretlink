@@ -3,13 +3,14 @@ import { useAuth } from '../../context/AuthContext';
 import { Card, Input, Button, Select, Badge } from '../../components/UIComponents';
 import {
   Filter, Phone, Lock, Calendar, ArrowRight, Weight, Ruler, AlertTriangle,
-  Thermometer, Truck, RefreshCw, SlidersHorizontal, ChevronDown, ChevronUp,
+  Thermometer, Truck, RefreshCw, SlidersHorizontal, ChevronDown, ChevronUp, Zap,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { SupabaseService } from '../../services/supabaseService';
-import { Truck as TruckType } from '../../types';
+import { Truck as TruckType, Load } from '../../types';
 import { EUROPEAN_COUNTRIES, getFlagEmoji } from '../../utils/countries';
 import { ListingDetailPanel } from '../../components/ListingDetailPanel';
+import { truckHasMatchInLoads } from '../../utils/matching';
 
 const COUNTRY_OPTIONS = [
   { value: '', label: 'Sve države' },
@@ -52,6 +53,7 @@ const INITIAL_FILTER = {
 export const TruckBoard = () => {
   const { profile, canViewContact } = useAuth();
   const [trucks, setTrucks] = useState<TruckType[]>([]);
+  const [myLoads, setMyLoads] = useState<Load[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTruck, setSelectedTruck] = useState<TruckType | null>(null);
@@ -75,7 +77,10 @@ export const TruckBoard = () => {
 
   useEffect(() => {
     fetchTrucks();
-  }, []);
+    if (profile?.id) {
+      SupabaseService.getUserLoads(profile.id).then(setMyLoads).catch(() => {});
+    }
+  }, [profile?.id]);
 
   const isPro = profile?.plan === 'pro';
 
@@ -349,14 +354,20 @@ export const TruckBoard = () => {
             const hasAdr = truck.adrCapable || (truck.adrClasses && truck.adrClasses.length > 0);
             const hasTemp = truck.temperatureMin != null || truck.temperatureMax != null;
 
+            const isMatch = myLoads.length > 0 && truckHasMatchInLoads(truck, myLoads) && truck.userId !== profile?.id;
             return (
-              <Card key={truck.id} onClick={() => setSelectedTruck(truck)} className="cursor-pointer hover:shadow-md hover:border-brand-400/30 transition-all duration-300 border-border overflow-hidden">
+              <Card key={truck.id} onClick={() => setSelectedTruck(truck)} className={`cursor-pointer hover:shadow-md transition-all duration-300 border-border overflow-hidden ${isMatch ? 'hover:border-brand-400/50 border-brand-400/20' : 'hover:border-brand-400/30'}`}>
                 <div className="p-5 flex flex-col md:flex-row gap-6">
                   {/* Route + Details */}
                   <div className="flex-1 space-y-4 min-w-0">
                     {/* Badges row */}
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant="success">Slobodan kamion</Badge>
+                      {isMatch && (
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-brand-400 bg-brand-400/10 px-2 py-0.5 rounded-full border border-brand-400/20">
+                          <Zap className="h-3 w-3" /> Odgovara vašoj turi
+                        </span>
+                      )}
                       {(truck.truckCount ?? 1) > 1 && (
                         <Badge variant="default">{truck.truckCount} kamiona</Badge>
                       )}

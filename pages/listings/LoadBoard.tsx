@@ -3,13 +3,14 @@ import { useAuth } from '../../context/AuthContext';
 import { Card, Input, Button, Select, Badge } from '../../components/UIComponents';
 import {
   Filter, Calendar, Phone, Lock, ArrowRight, Weight, Ruler, Package,
-  AlertTriangle, Thermometer, RefreshCw, SlidersHorizontal, ChevronDown, ChevronUp,
+  AlertTriangle, Thermometer, RefreshCw, SlidersHorizontal, ChevronDown, ChevronUp, Zap,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { SupabaseService } from '../../services/supabaseService';
-import { Load } from '../../types';
+import { Load, Truck } from '../../types';
 import { EUROPEAN_COUNTRIES, getFlagEmoji } from '../../utils/countries';
 import { ListingDetailPanel } from '../../components/ListingDetailPanel';
+import { loadHasMatchInTrucks } from '../../utils/matching';
 
 const COUNTRY_OPTIONS = [
   { value: '', label: 'Sve države' },
@@ -74,6 +75,7 @@ const INITIAL_FILTER = {
 export const LoadBoard = () => {
   const { profile, canViewContact } = useAuth();
   const [loads, setLoads] = useState<Load[]>([]);
+  const [myTrucks, setMyTrucks] = useState<Truck[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedLoad, setSelectedLoad] = useState<Load | null>(null);
@@ -97,7 +99,10 @@ export const LoadBoard = () => {
 
   useEffect(() => {
     fetchLoads();
-  }, []);
+    if (profile?.id) {
+      SupabaseService.getUserTrucks(profile.id).then(setMyTrucks).catch(() => {});
+    }
+  }, [profile?.id]);
 
   const isPro = profile?.plan === 'pro';
 
@@ -426,14 +431,20 @@ export const LoadBoard = () => {
             const hasAdr = load.adrClasses && load.adrClasses.length > 0;
             const hasTemp = load.temperatureMin != null || load.temperatureMax != null;
 
+            const isMatch = myTrucks.length > 0 && loadHasMatchInTrucks(load, myTrucks) && load.userId !== profile?.id;
             return (
-              <Card key={load.id} onClick={() => setSelectedLoad(load)} className="cursor-pointer hover:shadow-md hover:border-brand-400/30 transition-all duration-300 border-border overflow-hidden">
+              <Card key={load.id} onClick={() => setSelectedLoad(load)} className={`cursor-pointer hover:shadow-md transition-all duration-300 border-border overflow-hidden ${isMatch ? 'hover:border-brand-400/50 border-brand-400/20' : 'hover:border-brand-400/30'}`}>
                 <div className="p-5 flex flex-col md:flex-row gap-6">
                   {/* Route + Details */}
                   <div className="flex-1 space-y-4 min-w-0">
                     {/* Badges row */}
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant="info">Tura</Badge>
+                      {isMatch && (
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-brand-400 bg-brand-400/10 px-2 py-0.5 rounded-full border border-brand-400/20">
+                          <Zap className="h-3 w-3" /> Odgovara vašem kamionu
+                        </span>
+                      )}
                       {load.isFtl === false && <Badge variant="default">LTL / Grupažno</Badge>}
                       {hasAdr && <Badge variant="warning">ADR</Badge>}
                       {hasTemp && <Badge variant="info">Frigo</Badge>}
