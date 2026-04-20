@@ -30,56 +30,74 @@ export const CityAutocomplete: React.FC<CityAutocompleteProps> = ({
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchCities = async () => {
-      if (value.length >= 2) {
-        setLoading(true);
-        
-        // First try local database for instant results
-        const localResults = searchCities(value, country);
-        
+      if (value.length < 2) {
+        setSuggestions([]);
+        setShowSuggestions(false);
+        setLoading(false);
+        setSelectedIndex(-1);
+        return;
+      }
+
+      // 1) Prvo lokalni rezultati (instant) — odmah ih pokaži
+      const localResults = searchCities(value, country);
+      if (!cancelled) {
         if (localResults.length > 0) {
           setSuggestions(localResults);
           setShowSuggestions(true);
+          setLoading(false); // ne spinuj ako imaš lokalne rezultate
+        } else {
+          setLoading(true); // samo kad nema lokalnih, probaj Google
         }
-        
-        // Then fetch from Google Places API for complete results
+        setSelectedIndex(-1);
+      }
+
+      // 2) Google Places pokušaj sa hard timeout-om od 3s (da ne visi beskonačno)
+      if (localResults.length === 0) {
         try {
-          const googleResults = await searchCitiesWithGoogle(value, country);
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('timeout')), 3000)
+          );
+          const googleResults = await Promise.race([
+            searchCitiesWithGoogle(value, country),
+            timeoutPromise,
+          ]) as Awaited<ReturnType<typeof searchCitiesWithGoogle>>;
+
+          if (cancelled) return;
+
           if (googleResults.length > 0) {
             setSuggestions(googleResults);
             setShowSuggestions(true);
-          } else if (localResults.length === 0) {
-            // If no results from both sources
+          } else {
             setSuggestions([]);
             setShowSuggestions(false);
           }
         } catch (error) {
-          console.error('Error fetching cities:', error);
-          // Keep local results if Google fails
-          if (localResults.length === 0) {
-            setSuggestions([]);
-            setShowSuggestions(false);
-          }
+          if (cancelled) return;
+          // Google ne radi → ostani prazan, ali skloni loading
+          setSuggestions([]);
+          setShowSuggestions(false);
         } finally {
-          setLoading(false);
+          if (!cancelled) setLoading(false);
         }
-      } else {
-        setSuggestions([]);
-        setShowSuggestions(false);
-        setLoading(false);
       }
-      setSelectedIndex(-1);
     };
 
     const debounceTimer = setTimeout(fetchCities, 200);
-    return () => clearTimeout(debounceTimer);
+    return () => {
+      cancelled = true;
+      clearTimeout(debounceTimer);
+    };
   }, [value, country]);
 
-  // Close suggestions when clicking outside
+  // Close suggestions + loading when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
         setShowSuggestions(false);
+        setLoading(false);
       }
     };
 
@@ -170,9 +188,9 @@ export const CityAutocomplete: React.FC<CityAutocompleteProps> = ({
         </div>
       )}
       
-      {loading && (
-        <div className="absolute z-50 w-full mt-1 bg-surface border border-border rounded-lg shadow-2xl p-4 text-center">
-          <span className="text-text-muted text-sm">Pretraga...</span>
+      {loading && suggestions.length === 0 && (
+        <div className="absolute z-50 w-full mt-1 bg-surface border border-border rounded-lg shadow-2xl p-3 text-center">
+          <span className="text-text-muted text-xs">Pretraga...</span>
         </div>
       )}
       

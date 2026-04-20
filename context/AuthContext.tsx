@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { User as AppUser, UserRole, UserStatus, SubscriptionPlan, Company } from '../types'
+import { getPlanLimits } from '../utils/plans'
 
 interface AuthContextType {
   user: User | null
@@ -65,6 +66,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (event === 'INITIAL_SESSION') return // već obrađeno u init()
 
         console.log('Auth state change:', event, session?.user?.id)
+
+        // VAŽNO: postavi loading=true dok se profil učitava posle login-a,
+        // da ProtectedRoute ne preusmeri na /login jer profile još nije stigao
+        if (event === 'SIGNED_IN' && session?.user) {
+          setLoading(true)
+        }
 
         setSession(session)
         setUser(session?.user ?? null)
@@ -160,6 +167,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         directPhone: profileData.direct_phone,
         mobilePhone: profileData.mobile_phone,
         phoneCountryCode: profileData.phone_country_code,
+        avatarUrl: profileData.avatar_url,
+        bio: profileData.bio,
+        avgRating: profileData.avg_rating !== null && profileData.avg_rating !== undefined ? Number(profileData.avg_rating) : 0,
+        reviewCount: profileData.review_count || 0,
+        avgResponseTimeMinutes: profileData.avg_response_time_minutes,
+        createdAt: profileData.created_at,
       }
 
       setProfile(basicProfile)
@@ -330,26 +343,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     
     console.log('Login successful, user:', data.user);
-    
-    // After successful login, check if user is pending and redirect appropriately
-    if (data.user) {
-      try {
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('status')
-          .eq('id', data.user.id)
-          .single();
-        
-        if (profileData && profileData.status === 'pending') {
-          // User is pending, they will be redirected by ProtectedRoute
-          console.log('User is pending approval');
-        }
-      } catch (profileError) {
-        console.error('Error checking user status:', profileError);
-        // Don't throw error - login was successful
-      }
-    }
-    
+
+    // ProtectedRoute će proveriti status preko fetchProfile (koji koristi raw fetch).
+    // Nema potrebe da se ovde radi dodatni .single() poziv — taj poziv je ranije visio
+    // jer Supabase JS klijent abortuje zahteve, što je blokiralo ceo login flow.
     return data
   }
 
@@ -415,8 +412,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (profile.role === 'admin') return true
     if (profile.id === targetUserId) return true
     if (profile.status !== 'approved') return false
-    if (profile.plan === 'free') return false // FREE korisnici ne vide kontakte
-    return true
+    // Centralizovana provera iz utils/plans.ts (Standard+ može)
+    return getPlanLimits(profile.plan).canSeeContacts
   }
 
   const isAuthenticated = !!user

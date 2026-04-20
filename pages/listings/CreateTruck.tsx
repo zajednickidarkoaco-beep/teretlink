@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Card, Input, Button, Select } from '../../components/UIComponents';
 import { UserStatus } from '../../types';
 import { SupabaseService } from '../../services/supabaseService';
 import { EUROPEAN_COUNTRIES } from '../../utils/countries';
-import { AlertCircle, CheckCircle, MapPin, Truck, AlertTriangle, Phone } from 'lucide-react';
+import { getPlanLimits, PLAN_NAMES } from '../../utils/plans';
+import { AlertCircle, CheckCircle, MapPin, Truck, AlertTriangle, Phone, Crown } from 'lucide-react';
 
 const VEHICLE_TYPES = [
   { value: 'Cerada / Tautliner', label: 'Cerada / Tautliner' },
@@ -104,6 +105,37 @@ export const CreateTruck = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [hasAdr, setHasAdr] = useState(false);
+  const [monthlyCount, setMonthlyCount] = useState<number>(0);
+  const [featuredCredits, setFeaturedCredits] = useState<number>(0);
+  const [isFeatured, setIsFeatured] = useState(false);
+  const [quotaLoading, setQuotaLoading] = useState(true);
+
+  const planLimits = getPlanLimits(profile?.plan);
+  const planName = PLAN_NAMES[(profile?.plan as any) || 'free'] || 'Početni';
+  const monthlyLimit = planLimits.monthlyTruckLimit;
+  const hasReachedLimit = monthlyLimit !== Infinity && monthlyCount >= monthlyLimit;
+  const remaining = monthlyLimit === Infinity ? Infinity : Math.max(0, monthlyLimit - monthlyCount);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    let cancelled = false;
+    (async () => {
+      setQuotaLoading(true);
+      try {
+        const count = await SupabaseService.getMonthlyPostCount(profile.id, 'truck');
+        if (!cancelled) setMonthlyCount(count);
+        if (profile.plan === 'pro') {
+          const credits = await SupabaseService.getFeaturedCreditsRemaining(profile.id);
+          if (!cancelled) setFeaturedCredits(credits);
+        }
+      } catch (err) {
+        console.error('Failed to load quota info', err);
+      } finally {
+        if (!cancelled) setQuotaLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [profile?.id, profile?.plan]);
 
   const [form, setForm] = useState({
     // Lokacija
@@ -151,19 +183,6 @@ export const CreateTruck = () => {
     );
   }
 
-  if (profile?.plan === 'free') {
-    return (
-      <div className="flex flex-col items-center justify-center h-[60vh] text-center p-4">
-        <h2 className="text-2xl font-bold text-text-main">Potreban je upgrade plana</h2>
-        <p className="text-text-muted mt-2">Sa FREE planom možete samo pregledati kamione. Za objavljivanje potreban je STANDARD ili PRO plan.</p>
-        <div className="flex gap-3 mt-6">
-          <Button onClick={() => navigate('/pricing')} variant="primary">Pogledaj planove</Button>
-          <Button onClick={() => navigate('/dashboard')} variant="outline">Nazad</Button>
-        </div>
-      </div>
-    );
-  }
-
   if (success) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-center p-4">
@@ -190,10 +209,18 @@ export const CreateTruck = () => {
       setError('Podaci o firmi nisu učitani. Molimo osvežite stranicu.');
       return;
     }
+    if (hasReachedLimit) {
+      setError(`Dostigli ste mesečni limit od ${monthlyLimit} kamiona na ${planName} planu. Nadogradite plan za neograničeno objavljivanje.`);
+      return;
+    }
+    if (isFeatured && featuredCredits <= 0) {
+      setError('Nemate više dostupnih kredita za isticanje oglasa ovog meseca.');
+      return;
+    }
     setLoading(true);
     setError('');
     try {
-      await SupabaseService.createTruck(profile.id, profile.company.name, {
+      const created = await SupabaseService.createTruck(profile.id, profile.company.name, {
         originCountry: form.originCountry,
         originCity: form.originCity,
         originPostalCode: form.originPostalCode || undefined,
@@ -214,6 +241,15 @@ export const CreateTruck = () => {
         contactPhone: form.contactPhone || undefined,
         description: form.description || undefined,
       } as any);
+      // Pro: iskoristi featured kredit ako je oglas označen kao istaknut
+      if (isFeatured && created?.id && profile.plan === 'pro') {
+        try {
+          await SupabaseService.useFeaturedCredit(profile.id, 'truck', created.id);
+        } catch (featErr) {
+          console.error('Featured credit usage failed', featErr);
+        }
+      }
+      setMonthlyCount(c => c + 1);
       setSuccess(true);
     } catch (err: any) {
       setError(err.message || 'Greška pri objavljivanju. Molimo pokušajte ponovo.');
@@ -228,6 +264,32 @@ export const CreateTruck = () => {
         <h1 className="text-2xl font-bold text-text-main">Objavi slobodan kamion</h1>
         <p className="text-text-muted text-sm mt-1">Popunite detalje o vašem slobodnom vozilu.</p>
       </div>
+
+      {/* ── KVOTA / LIMIT WIDGET ──────────────────── */}
+      {!quotaLoading && monthlyLimit !== Infinity && (
+        <Card className={`p-4 ${hasReachedLimit ? 'border-red-500/40 bg-red-500/[0.04]' : 'border-amber-400/30 bg-amber-400/[0.03]'}`}>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className={`h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0 ${hasReachedLimit ? 'bg-red-500/15' : 'bg-amber-400/15'}`}>
+                <Truck className={`h-5 w-5 ${hasReachedLimit ? 'text-red-500' : 'text-amber-400'}`} />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-text-main">
+                  {hasReachedLimit
+                    ? `Dostigli ste mesečni limit (${monthlyLimit}/${monthlyLimit})`
+                    : `Iskorišćeno ${monthlyCount} od ${monthlyLimit} ovog meseca`}
+                </p>
+                <p className="text-xs text-text-muted mt-0.5">
+                  {planName} plan · preostalo {remaining} kamiona do kraja meseca
+                </p>
+              </div>
+            </div>
+            <Button type="button" variant="primary" onClick={() => navigate('/pricing')} className="text-xs">
+              <Crown className="h-3.5 w-3.5 mr-1" /> Nadogradi plan
+            </Button>
+          </div>
+        </Card>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-5">
 
@@ -441,6 +503,37 @@ export const CreateTruck = () => {
           </div>
         </Card>
 
+        {/* ── ISTAKNI OGLAS (samo Pro) ─────────────── */}
+        {profile?.plan === 'pro' && (
+          <Card className="border-amber-400/30 bg-gradient-to-r from-amber-500/[0.04] via-transparent to-transparent">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-amber-400/15 flex items-center justify-center flex-shrink-0">
+                  <Crown className="h-5 w-5 text-amber-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-text-main">Istakni ovaj oglas</p>
+                  <p className="text-xs text-text-muted mt-0.5">
+                    Pojavljuje se na vrhu liste sa Premium oznakom · preostalo {featuredCredits} kredita ovog meseca
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsFeatured(!isFeatured)}
+                disabled={!isFeatured && featuredCredits <= 0}
+                className={`px-4 h-10 rounded-md text-sm font-semibold border transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                  isFeatured
+                    ? 'bg-amber-400/15 border-amber-400 text-amber-400'
+                    : 'bg-surface border-border text-text-muted hover:border-amber-400/40'
+                }`}
+              >
+                {isFeatured ? '★ Istaknuto' : 'Istakni oglas'}
+              </button>
+            </div>
+          </Card>
+        )}
+
         {/* Error */}
         {error && (
           <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2">
@@ -452,8 +545,8 @@ export const CreateTruck = () => {
         {/* Akcije */}
         <div className="flex justify-end gap-3 pt-2">
           <Button type="button" variant="outline" onClick={() => navigate('/trucks')}>Otkaži</Button>
-          <Button type="submit" variant="primary" disabled={loading} className="min-w-36">
-            {loading ? 'Objavljujem...' : 'Objavi kamion'}
+          <Button type="submit" variant="primary" disabled={loading || hasReachedLimit} className="min-w-36">
+            {loading ? 'Objavljujem...' : hasReachedLimit ? 'Limit dostignut' : 'Objavi kamion'}
           </Button>
         </div>
       </form>

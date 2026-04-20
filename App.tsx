@@ -19,6 +19,12 @@ import { CreateTruck } from './pages/listings/CreateTruck';
 import { MyListings } from './pages/listings/MyListings';
 import { AdminPanel } from './pages/admin/AdminPanel';
 import { Profile } from './pages/profile/Profile';
+import { PublicProfile } from './pages/profile/PublicProfile';
+import { About } from './pages/legal/About';
+import { Contact } from './pages/legal/Contact';
+import { PrivacyPolicy } from './pages/legal/PrivacyPolicy';
+import { TermsOfServicePage } from './pages/legal/TermsOfServicePage';
+import { CookiesPolicy } from './pages/legal/CookiesPolicy';
 
 const App = () => {
   return (
@@ -35,6 +41,13 @@ const App = () => {
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/pending-approval" element={<PendingApproval />} />
 
+          {/* Legal / Info Pages */}
+          <Route path="/about" element={<About />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/terms" element={<TermsOfServicePage />} />
+          <Route path="/cookies" element={<CookiesPolicy />} />
+
           {/* Protected Routes - Require Authentication AND Approval */}
           <Route element={
             <ProtectedRoute requireApproval>
@@ -49,16 +62,15 @@ const App = () => {
             <Route path="/post-truck" element={<CreateTruck />} />
             <Route path="/my-listings" element={<MyListings />} />
             <Route path="/profile" element={<Profile />} />
-            
+            <Route path="/user/:id" element={<PublicProfile />} />
+            <Route path="/plans" element={<Pricing />} />
+
             {/* Admin routes - nested within approved routes */}
             <Route path="/admin" element={
               <ProtectedRoute requireAdmin>
                 <AdminPanel />
               </ProtectedRoute>
             } />
-            
-            {/* Plans route redirects to pricing for now */}
-            <Route path="/plans" element={<Navigate to="/pricing" replace />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

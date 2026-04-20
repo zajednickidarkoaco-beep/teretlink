@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import { LayoutDashboard, Truck, Package, Shield, CreditCard, LogOut, ArrowLeftRight, Sun, Moon, List, UserCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { cn } from '../UIComponents';
 
-export const Sidebar = () => {
+export const Sidebar = ({ onNavigate }: { onNavigate?: () => void } = {}) => {
   const { profile, signOut } = useAuth();
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
@@ -38,7 +38,7 @@ export const Sidebar = () => {
   return (
     <div className="flex h-full w-64 flex-col border-r border-border bg-background transition-colors duration-300">
       <div className="flex h-16 items-center px-6 border-b border-border">
-        <div className="flex items-center gap-3">
+        <Link to="/dashboard" onClick={onNavigate} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
            <div className="relative flex h-8 w-8 items-center justify-center bg-brand-400 rounded-md text-black shadow-glow">
              <ArrowLeftRight className="h-4 w-4" />
            </div>
@@ -46,28 +46,28 @@ export const Sidebar = () => {
              <span className="text-lg font-bold text-text-main tracking-tight leading-none">Nalozi</span>
              <span className="text-[9px] font-bold text-brand-500 uppercase tracking-widest mt-0.5">za utovar</span>
            </div>
-        </div>
+        </Link>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-6">
         <nav className="space-y-1">
-          <NavLink to="/dashboard" className={navItemClass}>
+          <NavLink to="/dashboard" onClick={onNavigate} className={navItemClass}>
             <LayoutDashboard className="h-4 w-4" />
             Kontrolna tabla
           </NavLink>
-          <NavLink to="/loads" className={navItemClass}>
+          <NavLink to="/loads" onClick={onNavigate} className={navItemClass}>
             <Package className="h-4 w-4" />
             Ture (Tereti)
           </NavLink>
-          <NavLink to="/trucks" className={navItemClass}>
+          <NavLink to="/trucks" onClick={onNavigate} className={navItemClass}>
             <Truck className="h-4 w-4" />
             Kamioni
           </NavLink>
-          <NavLink to="/my-listings" className={navItemClass}>
+          <NavLink to="/my-listings" onClick={onNavigate} className={navItemClass}>
             <List className="h-4 w-4" />
             Moje objave
           </NavLink>
-          <NavLink to="/profile" className={navItemClass}>
+          <NavLink to="/profile" onClick={onNavigate} className={navItemClass}>
             <UserCircle className="h-4 w-4" />
             Moj profil
           </NavLink>
@@ -77,7 +77,7 @@ export const Sidebar = () => {
               Upravljanje
             </p>
           </div>
-          <NavLink to="/plans" className={navItemClass}>
+          <NavLink to="/plans" onClick={onNavigate} className={navItemClass}>
             <CreditCard className="h-4 w-4" />
             Pretplata
           </NavLink>
@@ -89,7 +89,7 @@ export const Sidebar = () => {
                   Admin Zona
                 </p>
               </div>
-              <NavLink to="/admin" className={navItemClass}>
+              <NavLink to="/admin" onClick={onNavigate} className={navItemClass}>
                 <Shield className="h-4 w-4" />
                 Administracija
               </NavLink>

@@ -62,6 +62,34 @@ export interface User {
   directPhone?: string;
   mobilePhone?: string;
   phoneCountryCode?: string;
+  // Profile enrichment
+  avatarUrl?: string | null;
+  bio?: string | null;
+  avgRating?: number;
+  reviewCount?: number;
+  avgResponseTimeMinutes?: number | null;
+  createdAt?: string;
+}
+
+// Javni profil korisnika — ono što drugi korisnici vide
+export interface PublicProfile {
+  id: string;
+  name: string;
+  jobTitle?: string | null;
+  avatarUrl?: string | null;
+  bio?: string | null;
+  plan: SubscriptionPlan;
+  avgRating: number;
+  reviewCount: number;
+  avgResponseTimeMinutes?: number | null;
+  createdAt: string;
+  company?: {
+    name: string;
+    category?: string;
+    country?: string;
+    city?: string;
+    website?: string | null;
+  } | null;
 }
 
 export interface Listing {
@@ -117,6 +145,8 @@ export interface Listing {
   // Meta
   views: number;
   inquiries: number;
+  isFeatured?: boolean; // Premium isticanje oglasa (Pro plan)
+  posterPlan?: 'free' | 'standard' | 'pro'; // Plan korisnika koji je objavio — za prikaz Verifikovan/Top Partner badge-a
 }
 
 export interface Load extends Listing {
@@ -133,3 +163,50 @@ export interface Truck extends Listing {
 // Helper types za forme
 export type CreateLoadData = Omit<Load, 'id' | 'userId' | 'createdAt' | 'companyName' | 'views' | 'inquiries' | 'type'>;
 export type CreateTruckData = Omit<Truck, 'id' | 'userId' | 'createdAt' | 'companyName' | 'views' | 'inquiries' | 'type'>;
+
+// =============================================
+// Notifikacije (matching alarmi za Standard/Pro)
+// =============================================
+export type NotificationType = 'match_load' | 'match_truck' | 'system' | 'contact';
+
+export interface Notification {
+  id: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  relatedLoadId?: string | null;
+  relatedTruckId?: string | null;
+  relatedUserId?: string | null;
+  isRead: boolean;
+  createdAt: string;
+}
+
+// =============================================
+// Recenzije (ocene korisnika — 1-5 zvezdica)
+// =============================================
+export type ReviewListingType = 'load' | 'truck';
+
+export interface Review {
+  id: string;
+  reviewerId: string;
+  revieweeId: string;
+  listingId?: string | null;
+  listingType?: ReviewListingType | null;
+  rating: number; // 1-5
+  comment?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  // Denormalized reviewer info (joined at read time)
+  reviewerName?: string;
+  reviewerAvatarUrl?: string | null;
+  reviewerCompanyName?: string | null;
+}
+
+export interface CreateReviewData {
+  revieweeId: string;
+  listingId?: string | null;
+  listingType?: ReviewListingType | null;
+  rating: number;
+  comment?: string;
+}

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   X,
   MapPin,
@@ -13,10 +13,15 @@ import {
   DollarSign,
   FileText,
   ArrowRight,
+  Star,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Load, Truck } from '../types';
 import { Badge, Button } from './UIComponents';
+import { PosterBadges } from './PosterBadges';
 import { getFlagEmoji } from '../utils/countries';
+import { SupabaseService } from '../services/supabaseService';
+import { useAuth } from '../context/AuthContext';
 
 interface ListingDetailPanelProps {
   item: Load | Truck | null;
@@ -50,10 +55,41 @@ const Chip = ({ children, className }: { children: React.ReactNode; className?: 
 );
 
 export const ListingDetailPanel = ({ item, onClose, canSeePhone }: ListingDetailPanelProps) => {
+  const { profile } = useAuth();
+
+  // Escape ključ zatvara panel
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    if (item) {
+      window.addEventListener('keydown', handleEsc);
+      document.body.style.overflow = 'hidden';
+    }
+    return () => {
+      window.removeEventListener('keydown', handleEsc);
+      document.body.style.overflow = '';
+    };
+  }, [item, onClose]);
+
   if (!item) return null;
 
   const load = isLoad(item) ? item : null;
   const truck = isTruck(item) ? item : null;
+  const isOwn = item.userId === profile?.id;
+
+  // Ako korisnik otvori tuđi oglas i klikne kontakt, poveća se views i inquiries
+  const handleContactClick = () => {
+    if (isOwn) return;
+    if (load) {
+      SupabaseService.incrementLoadViews(load.id);
+      SupabaseService.incrementLoadInquiries(load.id);
+    }
+    if (truck) {
+      SupabaseService.incrementTruckViews(truck.id);
+      SupabaseService.incrementTruckInquiries(truck.id);
+    }
+  };
 
   const hasAdr = (item.adrClasses && item.adrClasses.length > 0) || (truck?.adrCapable);
   const hasTemp = item.temperatureMin != null || item.temperatureMax != null;
@@ -87,21 +123,37 @@ export const ListingDetailPanel = ({ item, onClose, canSeePhone }: ListingDetail
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
+        className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm animate-fade-in-fast"
         onClick={onClose}
       />
 
       {/* Panel */}
       <div
-        className="fixed right-0 top-0 h-full w-full max-w-lg bg-background border-l border-border shadow-2xl flex flex-col z-50"
+        className="fixed right-0 top-0 h-full w-full max-w-lg bg-background border-l border-border shadow-2xl flex flex-col z-50 animate-slide-in-right"
         onClick={e => e.stopPropagation()}
       >
         {/* Sticky Header */}
         <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-border bg-background flex-shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-3 min-w-0 flex-wrap">
+            {item.isFeatured && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/30 uppercase tracking-widest">
+                <Star className="h-3 w-3 fill-amber-400" /> Premium
+              </span>
+            )}
             {load && <Badge variant="info">Tura</Badge>}
             {truck && <Badge variant="success">Slobodan kamion</Badge>}
-            <h2 className="font-semibold text-text-main text-base truncate">{item.companyName}</h2>
+            {item.userId ? (
+              <Link
+                to={`/user/${item.userId}`}
+                className="font-semibold text-text-main text-base truncate hover:text-brand-400 hover:underline transition-colors"
+                title="Pogledaj profil firme"
+              >
+                {item.companyName}
+              </Link>
+            ) : (
+              <h2 className="font-semibold text-text-main text-base truncate">{item.companyName}</h2>
+            )}
+            <PosterBadges posterPlan={item.posterPlan} size="md" />
           </div>
           <button
             onClick={onClose}
@@ -375,7 +427,7 @@ export const ListingDetailPanel = ({ item, onClose, canSeePhone }: ListingDetail
               item.contactPhone ? (
                 <div className="flex flex-col gap-2">
                   {/* Poziv dugme */}
-                  <a href={`tel:${item.contactPhone}`} className="block">
+                  <a href={`tel:${item.contactPhone}`} onClick={handleContactClick} className="block">
                     <Button variant="primary" className="w-full gap-2">
                       <Phone className="h-4 w-4" />
                       {item.contactPhone}
@@ -386,6 +438,7 @@ export const ListingDetailPanel = ({ item, onClose, canSeePhone }: ListingDetail
                     href={`https://wa.me/${item.contactPhone.replace(/[\s\-\(\)\+]/g, '')}`}
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={handleContactClick}
                     className="flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-lg font-semibold text-sm text-white transition-all"
                     style={{ backgroundColor: '#25D366' }}
                     onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#1ebe5d')}

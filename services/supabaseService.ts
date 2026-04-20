@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import { Load, Truck, User as AppUser, CreateLoadData, CreateTruckData } from '../types'
+import { Load, Truck, User as AppUser, CreateLoadData, CreateTruckData, Notification, Review, CreateReviewData, PublicProfile } from '../types'
 
 export class SupabaseService {
   // Loads
@@ -7,11 +7,12 @@ export class SupabaseService {
     const { data, error } = await supabase
       .from('loads')
       .select('*')
+      .order('is_featured', { ascending: false })
       .order('created_at', { ascending: false })
 
     if (error) throw error
 
-    return data.map(load => ({
+    return data.map((load: any) => ({
       id: load.id,
       userId: load.user_id,
       type: 'load' as const,
@@ -46,6 +47,8 @@ export class SupabaseService {
       description: load.description,
       views: load.views,
       inquiries: load.inquiries,
+      isFeatured: load.is_featured,
+      posterPlan: load.poster_plan,
       createdAt: load.created_at,
     }))
   }
@@ -94,6 +97,7 @@ export class SupabaseService {
       description: load.description,
       views: load.views,
       inquiries: load.inquiries,
+      isFeatured: load.is_featured,
       createdAt: load.created_at,
     }))
   }
@@ -173,6 +177,7 @@ export class SupabaseService {
       description: result.description,
       views: result.views,
       inquiries: result.inquiries,
+      isFeatured: result.is_featured,
       createdAt: result.created_at,
     }
 
@@ -186,16 +191,113 @@ export class SupabaseService {
     return load
   }
 
+  // Brojači pregleda (fire-and-forget, ne blokira UI)
+  static incrementLoadViews(loadId: string): void {
+    supabase.rpc('increment_load_views', { load_id: loadId }).then(
+      () => {},
+      () => {}
+    )
+  }
+
+  static incrementTruckViews(truckId: string): void {
+    supabase.rpc('increment_truck_views', { truck_id: truckId }).then(
+      () => {},
+      () => {}
+    )
+  }
+
+  // Brojači kontakata (inquiries) — kad neko klikne na telefon/WhatsApp
+  static incrementLoadInquiries(loadId: string): void {
+    supabase.rpc('increment_inquiries', { table_name: 'loads', row_id: loadId }).then(
+      () => {},
+      () => {}
+    )
+  }
+
+  static incrementTruckInquiries(truckId: string): void {
+    supabase.rpc('increment_inquiries', { table_name: 'trucks', row_id: truckId }).then(
+      () => {},
+      () => {}
+    )
+  }
+
+  // Featured / Premium oglasi (admin-only)
+  static async setLoadFeatured(loadId: string, isFeatured: boolean): Promise<void> {
+    const { error } = await supabase
+      .from('loads')
+      .update({ is_featured: isFeatured })
+      .eq('id', loadId)
+    if (error) throw error
+  }
+
+  static async setTruckFeatured(truckId: string, isFeatured: boolean): Promise<void> {
+    const { error } = await supabase
+      .from('trucks')
+      .update({ is_featured: isFeatured })
+      .eq('id', truckId)
+    if (error) throw error
+  }
+
+  // Plan limits
+  static async getMonthlyPostCount(userId: string, type: 'load' | 'truck'): Promise<number> {
+    const { data, error } = await supabase.rpc('get_monthly_post_count', {
+      p_user_id: userId,
+      p_type: type,
+    })
+    if (error) {
+      console.error('getMonthlyPostCount error:', error)
+      return 0
+    }
+    return data ?? 0
+  }
+
+  // Featured credits za Pro plan
+  static async getFeaturedCreditsRemaining(userId: string): Promise<number> {
+    // Auto-reset ako je prošao mesec
+    const { data, error } = await supabase.rpc('reset_featured_credits_if_needed', {
+      p_user_id: userId,
+    })
+    if (error) {
+      console.error('getFeaturedCreditsRemaining error:', error)
+      return 0
+    }
+    return data ?? 0
+  }
+
+  static async useFeaturedCredit(userId: string, listingType: 'load' | 'truck', listingId: string): Promise<boolean> {
+    // Atomski: ako ima credit, smanji ga i postavi listing kao featured
+    const remaining = await this.getFeaturedCreditsRemaining(userId)
+    if (remaining <= 0) return false
+
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ featured_credits_remaining: remaining - 1 })
+      .eq('id', userId)
+    if (updateError) {
+      console.error('useFeaturedCredit profile update error:', updateError)
+      return false
+    }
+
+    if (listingType === 'load') {
+      await this.setLoadFeatured(listingId, true)
+    } else {
+      await this.setTruckFeatured(listingId, true)
+    }
+
+    return true
+  }
+
   // Trucks
   static async getTrucks(): Promise<Truck[]> {
     const { data, error } = await supabase
       .from('trucks')
       .select('*')
+      .order('is_featured', { ascending: false })
       .order('created_at', { ascending: false })
 
     if (error) throw error
 
-    return data.map(truck => ({
+    return data.map((truck: any) => ({
       id: truck.id,
       userId: truck.user_id,
       type: 'truck' as const,
@@ -222,6 +324,8 @@ export class SupabaseService {
       description: truck.description,
       views: truck.views,
       inquiries: truck.inquiries,
+      isFeatured: truck.is_featured,
+      posterPlan: truck.poster_plan,
       createdAt: truck.created_at,
     }))
   }
@@ -262,6 +366,7 @@ export class SupabaseService {
       description: truck.description,
       views: truck.views,
       inquiries: truck.inquiries,
+      isFeatured: truck.is_featured,
       createdAt: truck.created_at,
     }))
   }
@@ -325,6 +430,7 @@ export class SupabaseService {
       description: result.description,
       views: result.views,
       inquiries: result.inquiries,
+      isFeatured: result.is_featured,
       createdAt: result.created_at,
     }
 
@@ -505,6 +611,336 @@ export class SupabaseService {
       .eq('id', userId)
 
     if (error) throw error
+  }
+
+  // =============================================
+  // Notifications (matching alarmi za Standard/Pro)
+  // =============================================
+
+  static async getNotifications(limit = 20): Promise<Notification[]> {
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit)
+
+    if (error) {
+      console.error('Error fetching notifications:', error)
+      return []
+    }
+
+    return (data || []).map((n: any) => ({
+      id: n.id,
+      userId: n.user_id,
+      type: n.type,
+      title: n.title,
+      message: n.message,
+      relatedLoadId: n.related_load_id,
+      relatedTruckId: n.related_truck_id,
+      relatedUserId: n.related_user_id,
+      isRead: n.is_read,
+      createdAt: n.created_at,
+    }))
+  }
+
+  static async getUnreadNotificationCount(): Promise<number> {
+    const { data, error } = await supabase.rpc('get_unread_notification_count')
+    if (error) {
+      console.error('Error fetching unread count:', error)
+      return 0
+    }
+    return (data as number) || 0
+  }
+
+  static async markNotificationAsRead(notificationId: string): Promise<void> {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('id', notificationId)
+    if (error) console.error('Error marking notification read:', error)
+  }
+
+  static async markAllNotificationsAsRead(): Promise<void> {
+    const { error } = await supabase.rpc('mark_all_notifications_read')
+    if (error) console.error('Error marking all read:', error)
+  }
+
+  static async deleteNotification(notificationId: string): Promise<void> {
+    const { error } = await supabase
+      .from('notifications')
+      .delete()
+      .eq('id', notificationId)
+    if (error) console.error('Error deleting notification:', error)
+  }
+
+  /**
+   * Email hook — za sada samo log.
+   * TODO: Kad se doda SMTP/Resend, ovde pozvati Edge Function koja šalje email.
+   */
+  static async sendMatchNotificationEmail(_userId: string, _notification: Notification): Promise<void> {
+    // Placeholder — biće implementirano nakon setup-a SMTP-a
+    return
+  }
+
+  // =============================================
+  // Avatar upload (Supabase Storage)
+  // =============================================
+
+  /**
+   * Upload avatar slike u bucket 'avatars'. Fajl se čuva kao `{userId}/avatar.{ext}`.
+   * Vraća public URL avatar-a.
+   */
+  static async uploadAvatar(userId: string, file: File): Promise<string> {
+    // Validacija veličine (max 2 MB)
+    if (file.size > 2 * 1024 * 1024) {
+      throw new Error('Slika je prevelika. Maksimalno 2 MB.')
+    }
+
+    // Validacija tipa
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+    if (!allowedTypes.includes(file.type)) {
+      throw new Error('Dozvoljeni su samo JPG, PNG, WebP ili GIF formati.')
+    }
+
+    // Izvuci ekstenziju
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+    const path = `${userId}/avatar.${ext}`
+
+    // Upload sa upsert=true (zameni staru sliku)
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(path, file, {
+        upsert: true,
+        cacheControl: '3600',
+      })
+
+    if (uploadError) throw uploadError
+
+    // Dobij public URL
+    const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
+    const publicUrl = `${urlData.publicUrl}?t=${Date.now()}` // cache-buster
+
+    // Sačuvaj URL u profiles tabeli
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ avatar_url: publicUrl })
+      .eq('id', userId)
+
+    if (updateError) throw updateError
+
+    return publicUrl
+  }
+
+  /** Ukloni avatar — obriše fajl iz storage-a i očisti avatar_url u profilima. */
+  static async removeAvatar(userId: string): Promise<void> {
+    // Probaj da obrišeš sve varijante (jpg/png/webp/gif)
+    const extensions = ['jpg', 'jpeg', 'png', 'webp', 'gif']
+    const paths = extensions.map((ext) => `${userId}/avatar.${ext}`)
+    await supabase.storage.from('avatars').remove(paths)
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ avatar_url: null })
+      .eq('id', userId)
+    if (error) throw error
+  }
+
+  /** Ažuriraj bio (opis firme) — max 500 karaktera. */
+  static async updateBio(userId: string, bio: string): Promise<void> {
+    const trimmed = bio.trim().slice(0, 500)
+    const { error } = await supabase
+      .from('profiles')
+      .update({ bio: trimmed || null })
+      .eq('id', userId)
+    if (error) throw error
+  }
+
+  // =============================================
+  // Reviews (recenzije korisnika)
+  // =============================================
+
+  /** Sve recenzije za zadatog korisnika (reviewee) — sa osnovnim podacima reviewer-a. */
+  static async getReviewsForUser(userId: string): Promise<Review[]> {
+    const { data, error } = await supabase
+      .from('reviews')
+      .select(`
+        *,
+        reviewer:profiles!reviews_reviewer_id_fkey(id, name, avatar_url)
+      `)
+      .eq('reviewee_id', userId)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching reviews:', error)
+      return []
+    }
+
+    // Paralelno povuci company name za svakog reviewer-a
+    const reviewerIds = Array.from(new Set((data || []).map((r: any) => r.reviewer_id)))
+    const companyMap = new Map<string, string>()
+    if (reviewerIds.length > 0) {
+      const { data: companies } = await supabase
+        .from('companies')
+        .select('user_id, name')
+        .in('user_id', reviewerIds)
+      ;(companies || []).forEach((c: any) => companyMap.set(c.user_id, c.name))
+    }
+
+    return (data || []).map((r: any) => ({
+      id: r.id,
+      reviewerId: r.reviewer_id,
+      revieweeId: r.reviewee_id,
+      listingId: r.listing_id,
+      listingType: r.listing_type,
+      rating: r.rating,
+      comment: r.comment,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+      reviewerName: r.reviewer?.name,
+      reviewerAvatarUrl: r.reviewer?.avatar_url,
+      reviewerCompanyName: companyMap.get(r.reviewer_id) || null,
+    }))
+  }
+
+  /** Proveri da li je trenutni korisnik već ostavio recenziju konkretnom korisniku. */
+  static async getMyReviewFor(revieweeId: string, listingId?: string | null, listingType?: 'load' | 'truck' | null): Promise<Review | null> {
+    const { data: auth } = await supabase.auth.getUser()
+    if (!auth?.user) return null
+
+    let query = supabase
+      .from('reviews')
+      .select('*')
+      .eq('reviewer_id', auth.user.id)
+      .eq('reviewee_id', revieweeId)
+
+    if (listingId) query = query.eq('listing_id', listingId)
+    else query = query.is('listing_id', null)
+
+    if (listingType) query = query.eq('listing_type', listingType)
+    else query = query.is('listing_type', null)
+
+    const { data, error } = await query.maybeSingle()
+    if (error) {
+      console.error('Error fetching my review:', error)
+      return null
+    }
+    if (!data) return null
+
+    return {
+      id: data.id,
+      reviewerId: data.reviewer_id,
+      revieweeId: data.reviewee_id,
+      listingId: data.listing_id,
+      listingType: data.listing_type,
+      rating: data.rating,
+      comment: data.comment,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    }
+  }
+
+  static async createReview(data: CreateReviewData): Promise<Review> {
+    const { data: auth } = await supabase.auth.getUser()
+    if (!auth?.user) throw new Error('Morate biti prijavljeni.')
+
+    if (data.revieweeId === auth.user.id) {
+      throw new Error('Ne možete oceniti sami sebe.')
+    }
+    if (data.rating < 1 || data.rating > 5) {
+      throw new Error('Ocena mora biti između 1 i 5.')
+    }
+
+    const { data: inserted, error } = await supabase
+      .from('reviews')
+      .insert({
+        reviewer_id: auth.user.id,
+        reviewee_id: data.revieweeId,
+        listing_id: data.listingId || null,
+        listing_type: data.listingType || null,
+        rating: data.rating,
+        comment: data.comment?.trim().slice(0, 300) || null,
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+
+    return {
+      id: inserted.id,
+      reviewerId: inserted.reviewer_id,
+      revieweeId: inserted.reviewee_id,
+      listingId: inserted.listing_id,
+      listingType: inserted.listing_type,
+      rating: inserted.rating,
+      comment: inserted.comment,
+      createdAt: inserted.created_at,
+      updatedAt: inserted.updated_at,
+    }
+  }
+
+  static async updateReview(reviewId: string, rating: number, comment?: string): Promise<void> {
+    if (rating < 1 || rating > 5) throw new Error('Ocena mora biti između 1 i 5.')
+    const { error } = await supabase
+      .from('reviews')
+      .update({
+        rating,
+        comment: comment?.trim().slice(0, 300) || null,
+      })
+      .eq('id', reviewId)
+    if (error) throw error
+  }
+
+  static async deleteReview(reviewId: string): Promise<void> {
+    const { error } = await supabase.from('reviews').delete().eq('id', reviewId)
+    if (error) throw error
+  }
+
+  // =============================================
+  // Public profile (šta drugi korisnici vide)
+  // =============================================
+
+  static async getPublicProfile(userId: string): Promise<PublicProfile | null> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, name, job_title, avatar_url, bio, plan, avg_rating, review_count, avg_response_time_minutes, created_at')
+      .eq('id', userId)
+      .eq('status', 'approved')
+      .maybeSingle()
+
+    if (error) {
+      console.error('Error fetching public profile:', error)
+      return null
+    }
+    if (!data) return null
+
+    // Dohvati podatke o firmi
+    const { data: companyData } = await supabase
+      .from('companies')
+      .select('name, category, country, city, website')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    return {
+      id: data.id,
+      name: data.name,
+      jobTitle: data.job_title,
+      avatarUrl: data.avatar_url,
+      bio: data.bio,
+      plan: data.plan,
+      avgRating: Number(data.avg_rating) || 0,
+      reviewCount: data.review_count || 0,
+      avgResponseTimeMinutes: data.avg_response_time_minutes,
+      createdAt: data.created_at,
+      company: companyData
+        ? {
+            name: companyData.name,
+            category: companyData.category,
+            country: companyData.country,
+            city: companyData.city,
+            website: companyData.website,
+          }
+        : null,
+    }
   }
 
   static async deleteUser(userId: string): Promise<void> {

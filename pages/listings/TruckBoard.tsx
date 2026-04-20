@@ -3,14 +3,16 @@ import { useAuth } from '../../context/AuthContext';
 import { Card, Input, Button, Select, Badge } from '../../components/UIComponents';
 import {
   Filter, Phone, Lock, Calendar, ArrowRight, Weight, Ruler, AlertTriangle,
-  Thermometer, Truck, RefreshCw, SlidersHorizontal, ChevronDown, ChevronUp, Zap,
+  Thermometer, Truck, RefreshCw, SlidersHorizontal, ChevronDown, ChevronUp, Zap, Star,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { SupabaseService } from '../../services/supabaseService';
 import { Truck as TruckType, Load } from '../../types';
 import { EUROPEAN_COUNTRIES, getFlagEmoji } from '../../utils/countries';
 import { ListingDetailPanel } from '../../components/ListingDetailPanel';
+import { PosterBadges } from '../../components/PosterBadges';
 import { truckHasMatchInLoads } from '../../utils/matching';
+import { getPlanLimits } from '../../utils/plans';
 
 const COUNTRY_OPTIONS = [
   { value: '', label: 'Sve države' },
@@ -82,10 +84,13 @@ export const TruckBoard = () => {
     }
   }, [profile?.id]);
 
-  const isPro = profile?.plan === 'pro';
+  const planLimits = getPlanLimits(profile?.plan);
+  const canUseBasicFilters = planLimits.canUseBasicFilters;
+  const canUseAdvancedFilters = planLimits.canUseAdvancedFilters;
+  const isPro = canUseAdvancedFilters;
 
   const filteredTrucks = trucks.filter(t => {
-    if (profile?.plan === 'free') return true;
+    if (!canUseBasicFilters) return true;
 
     // Basic filters (STANDARD+)
     if (filter.originCountry && t.originCountry !== filter.originCountry) return false;
@@ -94,7 +99,7 @@ export const TruckBoard = () => {
     if (filter.dateFrom && t.dateFrom < filter.dateFrom) return false;
 
     // Advanced filters (PRO only)
-    if (isPro) {
+    if (canUseAdvancedFilters) {
       if (filter.weightCapacityMin && (t.weightCapacity == null || t.weightCapacity < parseFloat(filter.weightCapacityMin))) return false;
       if (filter.ldmMin && (t.loadingMeters == null || t.loadingMeters < parseFloat(filter.ldmMin))) return false;
       if (filter.truckCountMin && (t.truckCount == null || t.truckCount < parseInt(filter.truckCountMin))) return false;
@@ -106,6 +111,10 @@ export const TruckBoard = () => {
   });
 
   const sortedTrucks = [...filteredTrucks].sort((a, b) => {
+    // Featured (istaknuti) oglasi uvek idu na vrh, bez obzira na izabrani sort
+    if (a.isFeatured && !b.isFeatured) return -1;
+    if (!a.isFeatured && b.isFeatured) return 1;
+
     switch (sort) {
       case 'oldest':    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       case 'date_asc':  return new Date(a.dateFrom).getTime() - new Date(b.dateFrom).getTime();
@@ -158,17 +167,15 @@ export const TruckBoard = () => {
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
           </button>
-          {profile?.plan !== 'free' && (
-            <Link to="/post-truck">
-              <Button variant="primary">+ Objavi kamion</Button>
-            </Link>
-          )}
+          <Link to="/post-truck">
+            <Button variant="primary">+ Objavi kamion</Button>
+          </Link>
         </div>
       </div>
 
       {/* Filter Bar */}
-      <Card className="p-5 sticky top-4 z-20 shadow-lg border-border ring-1 ring-border">
-        {profile?.plan === 'free' ? (
+      <Card className="p-4 md:p-5 sticky top-0 md:top-4 z-20 shadow-lg border-border ring-1 ring-border">
+        {!canUseBasicFilters ? (
           <div className="text-center py-3">
             <p className="text-text-muted text-sm mb-3">Filteri su dostupni samo sa STANDARD ili PRO planom</p>
             <Link to="/pricing">
@@ -178,7 +185,7 @@ export const TruckBoard = () => {
         ) : (
           <>
             {/* Basic Filters */}
-            <div className="grid md:grid-cols-5 gap-3 items-end">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 items-end">
               <Select
                 label="Zemlja polaska"
                 value={filter.originCountry}
@@ -241,7 +248,7 @@ export const TruckBoard = () => {
               <div className="relative mt-4 pt-4 border-t border-border">
                 <div className={!isPro ? 'blur-sm pointer-events-none select-none' : ''}>
                   {/* Row 1: Numeric ranges + toggles */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 items-end">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-end">
                     <Input
                       label="Nosivost min. (t)"
                       type="number"
@@ -356,7 +363,22 @@ export const TruckBoard = () => {
 
             const isMatch = myLoads.length > 0 && truckHasMatchInLoads(truck, myLoads) && truck.userId !== profile?.id;
             return (
-              <Card key={truck.id} onClick={() => setSelectedTruck(truck)} className={`cursor-pointer hover:shadow-md transition-all duration-300 border-border overflow-hidden ${isMatch ? 'hover:border-brand-400/50 border-brand-400/20' : 'hover:border-brand-400/30'}`}>
+              <Card
+                key={truck.id}
+                onClick={() => setSelectedTruck(truck)}
+                className={`cursor-pointer hover:shadow-md transition-all duration-300 overflow-hidden relative ${
+                  truck.isFeatured
+                    ? 'border-amber-400/40 ring-1 ring-amber-400/20 bg-gradient-to-r from-amber-500/[0.04] via-transparent to-transparent hover:border-amber-400/60 hover:ring-amber-400/30'
+                    : isMatch
+                      ? 'border-border hover:border-brand-400/50 border-brand-400/20'
+                      : 'border-border hover:border-brand-400/30'
+                }`}
+              >
+                {truck.isFeatured && (
+                  <div className="absolute top-0 right-0 bg-gradient-to-l from-amber-500/20 to-transparent px-3 py-1 flex items-center gap-1 text-[10px] font-bold text-amber-400 uppercase tracking-widest">
+                    <Star className="h-3 w-3 fill-amber-400" /> Istaknuto
+                  </div>
+                )}
                 <div className="p-5 flex flex-col md:flex-row gap-6">
                   {/* Route + Details */}
                   <div className="flex-1 space-y-4 min-w-0">
@@ -438,8 +460,22 @@ export const TruckBoard = () => {
                   {/* Company & Contact */}
                   <div className="w-full md:w-56 border-t md:border-t-0 md:border-l border-border pt-4 md:pt-0 md:pl-5 flex flex-col justify-between flex-shrink-0">
                     <div>
-                      <p className="font-semibold text-text-main text-sm">{truck.companyName}</p>
-                      <p className="text-xs text-text-muted mt-1">
+                      {truck.userId ? (
+                        <Link
+                          to={`/user/${truck.userId}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="font-semibold text-text-main text-sm hover:text-brand-400 hover:underline transition-colors"
+                          title="Pogledaj profil firme"
+                        >
+                          {truck.companyName}
+                        </Link>
+                      ) : (
+                        <p className="font-semibold text-text-main text-sm">{truck.companyName}</p>
+                      )}
+                      <div className="mt-1.5">
+                        <PosterBadges posterPlan={truck.posterPlan} />
+                      </div>
+                      <p className="text-xs text-text-muted mt-1.5">
                         {new Date(truck.createdAt).toLocaleDateString('sr-RS')}
                         {' · '}
                         {new Date(truck.createdAt).toLocaleTimeString('sr-RS', { hour: '2-digit', minute: '2-digit' })}
@@ -450,7 +486,7 @@ export const TruckBoard = () => {
                       {canSeePhone ? (
                         truck.contactPhone ? (
                           <>
-                            <a href={`tel:${truck.contactPhone}`} onClick={e => e.stopPropagation()}>
+                            <a href={`tel:${truck.contactPhone}`} onClick={e => { e.stopPropagation(); if (truck.userId !== profile?.id) { SupabaseService.incrementTruckViews(truck.id); SupabaseService.incrementTruckInquiries(truck.id); } }}>
                               <Button variant="secondary" className="w-full gap-2 font-semibold text-sm">
                                 <Phone className="h-4 w-4" /> {truck.contactPhone}
                               </Button>
@@ -459,7 +495,7 @@ export const TruckBoard = () => {
                               href={`https://wa.me/${truck.contactPhone.replace(/[\s\-\(\)\+]/g, '')}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              onClick={e => e.stopPropagation()}
+                              onClick={e => { e.stopPropagation(); if (truck.userId !== profile?.id) { SupabaseService.incrementTruckViews(truck.id); SupabaseService.incrementTruckInquiries(truck.id); } }}
                               className="flex items-center justify-center gap-2 w-full py-2 px-3 rounded-lg font-semibold text-xs text-white transition-opacity hover:opacity-90"
                               style={{ backgroundColor: '#25D366' }}
                             >

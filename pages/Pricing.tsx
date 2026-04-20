@@ -14,12 +14,16 @@ const PLANS = [
     icon: null,
     features: [
       { text: 'Pregled svih tura i kamiona', included: true },
-      { text: 'Objavljivanje tura i kamiona', included: false },
       { text: 'Pristup kontakt podacima', included: false },
-      { text: 'Filteri pretrage', included: false },
+      { text: '3 ture + 3 kamiona mesečno', included: true },
+      { text: 'Osnovni filteri (zemlja, datum, vozilo)', included: false },
+      { text: 'Napredni filteri (težina, cena, ADR, Frigo)', included: false },
       { text: 'Pametno podudaranje ruta', included: false },
       { text: 'Email alarmi pri podudaranju', included: false },
-      { text: 'Napredni filteri (težina, cena, ADR)', included: false },
+      { text: 'Statistike svojih oglasa', included: false },
+      { text: 'Featured / istaknuti oglasi', included: false },
+      { text: 'Verifikovan badge', included: false },
+      { text: 'Multi-user nalog', included: false },
     ],
     cta: 'Registruj se besplatno',
     ctaLink: '/register',
@@ -35,12 +39,16 @@ const PLANS = [
     popular: true,
     features: [
       { text: 'Pregled svih tura i kamiona', included: true },
-      { text: 'Objavljivanje tura i kamiona', included: true },
       { text: 'Pristup kontakt podacima', included: true },
+      { text: 'Neograničene objave', included: true },
       { text: 'Osnovni filteri (zemlja, datum, vozilo)', included: true },
+      { text: 'Napredni filteri (težina, cena, ADR, Frigo)', included: false },
       { text: 'Pametno podudaranje ruta', included: true },
       { text: 'Email alarmi pri podudaranju', included: true },
-      { text: 'Napredni filteri (težina, cena, ADR)', included: false },
+      { text: 'Osnovne statistike svojih oglasa', included: true },
+      { text: 'Featured / istaknuti oglasi', included: false },
+      { text: 'Verifikovan badge', included: true },
+      { text: 'Multi-user nalog', included: false },
     ],
     cta: 'Izaberi Standard',
     ctaVariant: 'primary' as const,
@@ -54,12 +62,16 @@ const PLANS = [
     icon: Star,
     features: [
       { text: 'Pregled svih tura i kamiona', included: true },
-      { text: 'Objavljivanje tura i kamiona', included: true },
       { text: 'Pristup kontakt podacima', included: true },
+      { text: 'Neograničene objave', included: true },
       { text: 'Osnovni filteri (zemlja, datum, vozilo)', included: true },
+      { text: 'Napredni filteri (težina, cena, ADR, Frigo)', included: true },
       { text: 'Pametno podudaranje ruta', included: true },
       { text: 'Email alarmi pri podudaranju', included: true },
-      { text: 'Napredni filteri (težina, cena, ADR, Frigo)', included: true },
+      { text: 'Napredne statistike + analitika', included: true },
+      { text: '5 Featured / istaknutih oglasa mesečno', included: true },
+      { text: 'Top Partner badge + prioritet u listi', included: true },
+      { text: 'Multi-user nalog (do 3 člana)', included: true },
     ],
     cta: 'Izaberi Pro',
     ctaVariant: 'outline' as const,
@@ -85,27 +97,27 @@ export const Pricing = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background text-text-main">
-      {/* Header */}
-      <div className="border-b border-border bg-background/80 backdrop-blur-sm">
-        <div className="mx-auto max-w-6xl px-4 py-4 flex items-center justify-between">
-          <Link
-            to={isAuthenticated ? '/dashboard' : '/'}
-            className="inline-flex items-center gap-2 text-xs text-text-muted hover:text-text-main transition-colors uppercase tracking-widest"
-          >
-            <ArrowLeft className="h-3 w-3" />
-            {isAuthenticated ? 'Kontrolna tabla' : 'Početna'}
-          </Link>
-          {!isAuthenticated && (
+    <div className={isAuthenticated ? 'text-text-main animate-fade-in' : 'min-h-screen bg-background text-text-main'}>
+      {/* Header — prikazuje se samo za neautentifikovane (public /pricing) */}
+      {!isAuthenticated && (
+        <div className="border-b border-border bg-background/80 backdrop-blur-sm">
+          <div className="mx-auto max-w-6xl px-4 py-4 flex items-center justify-between">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-2 text-xs text-text-muted hover:text-text-main transition-colors uppercase tracking-widest"
+            >
+              <ArrowLeft className="h-3 w-3" />
+              Početna
+            </Link>
             <Link to="/login">
               <Button variant="outline" size="sm">Prijavi se</Button>
             </Link>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Hero */}
-      <div className="mx-auto max-w-6xl px-4 pt-16 pb-12 text-center">
+      <div className={`mx-auto max-w-6xl px-4 ${isAuthenticated ? 'pt-4 pb-8' : 'pt-16 pb-12'} text-center`}>
         <div className="inline-flex items-center gap-2 bg-brand-400/10 border border-brand-400/20 rounded-full px-4 py-1.5 text-xs font-bold text-brand-400 uppercase tracking-widest mb-6">
           <Shield className="h-3.5 w-3.5" /> Transparentan cenovnik
         </div>

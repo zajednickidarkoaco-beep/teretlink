@@ -3,14 +3,16 @@ import { useAuth } from '../../context/AuthContext';
 import { Card, Input, Button, Select, Badge } from '../../components/UIComponents';
 import {
   Filter, Calendar, Phone, Lock, ArrowRight, Weight, Ruler, Package,
-  AlertTriangle, Thermometer, RefreshCw, SlidersHorizontal, ChevronDown, ChevronUp, Zap,
+  AlertTriangle, Thermometer, RefreshCw, SlidersHorizontal, ChevronDown, ChevronUp, Zap, Star,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { SupabaseService } from '../../services/supabaseService';
 import { Load, Truck } from '../../types';
 import { EUROPEAN_COUNTRIES, getFlagEmoji } from '../../utils/countries';
 import { ListingDetailPanel } from '../../components/ListingDetailPanel';
+import { PosterBadges } from '../../components/PosterBadges';
 import { loadHasMatchInTrucks } from '../../utils/matching';
+import { getPlanLimits } from '../../utils/plans';
 
 const COUNTRY_OPTIONS = [
   { value: '', label: 'Sve države' },
@@ -104,10 +106,13 @@ export const LoadBoard = () => {
     }
   }, [profile?.id]);
 
-  const isPro = profile?.plan === 'pro';
+  const planLimits = getPlanLimits(profile?.plan);
+  const canUseBasicFilters = planLimits.canUseBasicFilters;
+  const canUseAdvancedFilters = planLimits.canUseAdvancedFilters;
+  const isPro = canUseAdvancedFilters;
 
   const filteredLoads = loads.filter(l => {
-    if (profile?.plan === 'free') return true;
+    if (!canUseBasicFilters) return true;
 
     // Basic filters (STANDARD+)
     if (filter.originCountry && l.originCountry !== filter.originCountry) return false;
@@ -116,7 +121,7 @@ export const LoadBoard = () => {
     if (filter.dateFrom && l.dateFrom < filter.dateFrom) return false;
 
     // Advanced filters (PRO only)
-    if (isPro) {
+    if (canUseAdvancedFilters) {
       if (filter.weightMin && (l.weightTonnes == null || l.weightTonnes < parseFloat(filter.weightMin))) return false;
       if (filter.weightMax && (l.weightTonnes == null || l.weightTonnes > parseFloat(filter.weightMax))) return false;
       if (filter.ldmMax && (l.loadingMeters == null || l.loadingMeters > parseFloat(filter.ldmMax))) return false;
@@ -133,6 +138,10 @@ export const LoadBoard = () => {
   });
 
   const sortedLoads = [...filteredLoads].sort((a, b) => {
+    // Featured (istaknuti) oglasi uvek idu na vrh, bez obzira na izabrani sort
+    if (a.isFeatured && !b.isFeatured) return -1;
+    if (!a.isFeatured && b.isFeatured) return 1;
+
     switch (sort) {
       case 'oldest':     return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       case 'date_asc':   return new Date(a.dateFrom).getTime() - new Date(b.dateFrom).getTime();
@@ -190,17 +199,15 @@ export const LoadBoard = () => {
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
           </button>
-          {profile?.plan !== 'free' && (
-            <Link to="/post-load">
-              <Button variant="primary">+ Objavi turu</Button>
-            </Link>
-          )}
+          <Link to="/post-load">
+            <Button variant="primary">+ Objavi turu</Button>
+          </Link>
         </div>
       </div>
 
       {/* Filter Bar */}
-      <Card className="p-5 sticky top-4 z-20 shadow-lg border-border ring-1 ring-border">
-        {profile?.plan === 'free' ? (
+      <Card className="p-4 md:p-5 sticky top-0 md:top-4 z-20 shadow-lg border-border ring-1 ring-border">
+        {!canUseBasicFilters ? (
           <div className="text-center py-3">
             <p className="text-text-muted text-sm mb-3">Filteri su dostupni samo sa STANDARD ili PRO planom</p>
             <Link to="/pricing">
@@ -210,7 +217,7 @@ export const LoadBoard = () => {
         ) : (
           <>
             {/* Basic Filters */}
-            <div className="grid md:grid-cols-5 gap-3 items-end">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 items-end">
               <Select
                 label="Zemlja utovara"
                 value={filter.originCountry}
@@ -273,7 +280,7 @@ export const LoadBoard = () => {
               <div className="relative mt-4 pt-4 border-t border-border">
                 <div className={!isPro ? 'blur-sm pointer-events-none select-none' : ''}>
                   {/* Row 1: Numeric ranges */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-3">
                     <Input
                       label="Težina od (t)"
                       type="number"
@@ -323,7 +330,7 @@ export const LoadBoard = () => {
                   </div>
 
                   {/* Row 2: Type + Price + Toggles */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 items-end">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-end">
                     <Select
                       label="Vrsta tereta"
                       value={filter.loadType}
@@ -433,7 +440,22 @@ export const LoadBoard = () => {
 
             const isMatch = myTrucks.length > 0 && loadHasMatchInTrucks(load, myTrucks) && load.userId !== profile?.id;
             return (
-              <Card key={load.id} onClick={() => setSelectedLoad(load)} className={`cursor-pointer hover:shadow-md transition-all duration-300 border-border overflow-hidden ${isMatch ? 'hover:border-brand-400/50 border-brand-400/20' : 'hover:border-brand-400/30'}`}>
+              <Card
+                key={load.id}
+                onClick={() => setSelectedLoad(load)}
+                className={`cursor-pointer hover:shadow-md transition-all duration-300 overflow-hidden relative ${
+                  load.isFeatured
+                    ? 'border-amber-400/40 ring-1 ring-amber-400/20 bg-gradient-to-r from-amber-500/[0.04] via-transparent to-transparent hover:border-amber-400/60 hover:ring-amber-400/30'
+                    : isMatch
+                      ? 'border-border hover:border-brand-400/50 border-brand-400/20'
+                      : 'border-border hover:border-brand-400/30'
+                }`}
+              >
+                {load.isFeatured && (
+                  <div className="absolute top-0 right-0 bg-gradient-to-l from-amber-500/20 to-transparent px-3 py-1 flex items-center gap-1 text-[10px] font-bold text-amber-400 uppercase tracking-widest">
+                    <Star className="h-3 w-3 fill-amber-400" /> Istaknuto
+                  </div>
+                )}
                 <div className="p-5 flex flex-col md:flex-row gap-6">
                   {/* Route + Details */}
                   <div className="flex-1 space-y-4 min-w-0">
@@ -519,8 +541,22 @@ export const LoadBoard = () => {
                   {/* Company & Contact */}
                   <div className="w-full md:w-56 border-t md:border-t-0 md:border-l border-border pt-4 md:pt-0 md:pl-5 flex flex-col justify-between flex-shrink-0">
                     <div>
-                      <p className="font-semibold text-text-main text-sm">{load.companyName}</p>
-                      <p className="text-xs text-text-muted mt-1">
+                      {load.userId ? (
+                        <Link
+                          to={`/user/${load.userId}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="font-semibold text-text-main text-sm hover:text-brand-400 hover:underline transition-colors"
+                          title="Pogledaj profil firme"
+                        >
+                          {load.companyName}
+                        </Link>
+                      ) : (
+                        <p className="font-semibold text-text-main text-sm">{load.companyName}</p>
+                      )}
+                      <div className="mt-1.5">
+                        <PosterBadges posterPlan={load.posterPlan} />
+                      </div>
+                      <p className="text-xs text-text-muted mt-1.5">
                         {new Date(load.createdAt).toLocaleDateString('sr-RS')}
                         {' · '}
                         {new Date(load.createdAt).toLocaleTimeString('sr-RS', { hour: '2-digit', minute: '2-digit' })}
@@ -534,7 +570,7 @@ export const LoadBoard = () => {
                       {canSeePhone ? (
                         load.contactPhone ? (
                           <>
-                            <a href={`tel:${load.contactPhone}`} onClick={e => e.stopPropagation()}>
+                            <a href={`tel:${load.contactPhone}`} onClick={e => { e.stopPropagation(); if (load.userId !== profile?.id) { SupabaseService.incrementLoadViews(load.id); SupabaseService.incrementLoadInquiries(load.id); } }}>
                               <Button variant="secondary" className="w-full gap-2 font-semibold text-sm">
                                 <Phone className="h-4 w-4" /> {load.contactPhone}
                               </Button>
@@ -543,7 +579,7 @@ export const LoadBoard = () => {
                               href={`https://wa.me/${load.contactPhone.replace(/[\s\-\(\)\+]/g, '')}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              onClick={e => e.stopPropagation()}
+                              onClick={e => { e.stopPropagation(); if (load.userId !== profile?.id) { SupabaseService.incrementLoadViews(load.id); SupabaseService.incrementLoadInquiries(load.id); } }}
                               className="flex items-center justify-center gap-2 w-full py-2 px-3 rounded-lg font-semibold text-xs text-white transition-opacity hover:opacity-90"
                               style={{ backgroundColor: '#25D366' }}
                             >

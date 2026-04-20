@@ -8,6 +8,7 @@ import { Package, Truck as TruckIcon, Activity, Lock, TrendingUp, Plus, ArrowUpR
 import { SupabaseService } from '../../services/supabaseService';
 import { findLoadsMatchingTrucks, findTrucksMatchingLoads } from '../../utils/matching';
 import { getFlagEmoji } from '../../utils/countries';
+import { StatsSection } from '../../components/StatsSection';
 
 export const Overview = () => {
   const { profile, user, canViewContact } = useAuth();
@@ -52,20 +53,18 @@ export const Overview = () => {
           <h1 className="text-2xl font-bold text-text-main tracking-tight">Kontrolna Tabla</h1>
           <p className="text-text-muted text-sm">Dobrodošli nazad, {profile?.name || 'Korisnik'}</p>
         </div>
-        {profile?.plan !== 'free' && (
-          <div className="flex gap-3">
-            <Link to="/post-load">
-              <Button variant="primary" size="sm" className="gap-2 shadow-glow uppercase tracking-wide">
-                <Plus className="h-3.5 w-3.5" /> Nova Tura
-              </Button>
-            </Link>
-            <Link to="/post-truck">
-              <Button variant="outline" size="sm" className="gap-2 uppercase tracking-wide">
-                <Plus className="h-3.5 w-3.5" /> Novi Kamion
-              </Button>
-            </Link>
-          </div>
-        )}
+        <div className="flex gap-3">
+          <Link to="/post-load">
+            <Button variant="primary" size="sm" className="gap-2 shadow-glow uppercase tracking-wide">
+              <Plus className="h-3.5 w-3.5" /> Nova Tura
+            </Button>
+          </Link>
+          <Link to="/post-truck">
+            <Button variant="outline" size="sm" className="gap-2 uppercase tracking-wide">
+              <Plus className="h-3.5 w-3.5" /> Novi Kamion
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Upozorenja */}
@@ -158,6 +157,11 @@ export const Overview = () => {
         ))}
       </div>
 
+      {/* Statistika oglasa (Standard+, gate-ovano u samoj komponenti) */}
+      {profile?.status === UserStatus.APPROVED && (
+        <StatsSection myLoads={myLoads} myTrucks={myTrucks} userPlan={profile?.plan} />
+      )}
+
       {/* Moje ture i kamioni */}
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Moje Ture */}
@@ -176,13 +180,11 @@ export const Overview = () => {
           ) : myLoads.length === 0 ? (
             <Card className="p-8 text-center border-dashed border-border bg-transparent">
               <p className="text-text-muted text-sm mb-3">Nema aktivnih tura.</p>
-              {profile?.plan !== 'free' && (
-                <Link to="/post-load">
-                  <Button variant="primary" size="sm" className="gap-2">
-                    <Plus className="h-3.5 w-3.5" /> Objavi turu
-                  </Button>
-                </Link>
-              )}
+              <Link to="/post-load">
+                <Button variant="primary" size="sm" className="gap-2">
+                  <Plus className="h-3.5 w-3.5" /> Objavi turu
+                </Button>
+              </Link>
             </Card>
           ) : (
             myLoads.slice(0, 3).map(load => (
@@ -226,13 +228,11 @@ export const Overview = () => {
           ) : myTrucks.length === 0 ? (
             <Card className="p-8 text-center border-dashed border-border bg-transparent">
               <p className="text-text-muted text-sm mb-3">Nema aktivnih kamiona.</p>
-              {profile?.plan !== 'free' && (
-                <Link to="/post-truck">
-                  <Button variant="outline" size="sm" className="gap-2">
-                    <Plus className="h-3.5 w-3.5" /> Objavi kamion
-                  </Button>
-                </Link>
-              )}
+              <Link to="/post-truck">
+                <Button variant="outline" size="sm" className="gap-2">
+                  <Plus className="h-3.5 w-3.5" /> Objavi kamion
+                </Button>
+              </Link>
             </Card>
           ) : (
             myTrucks.slice(0, 3).map(truck => (
@@ -302,7 +302,7 @@ export const Overview = () => {
                     <div className="flex gap-2 flex-shrink-0">
                       {canViewContact(load.userId) && load.contactPhone ? (
                         <>
-                          <a href={`tel:${load.contactPhone}`} onClick={e => e.stopPropagation()}>
+                          <a href={`tel:${load.contactPhone}`} onClick={e => { e.stopPropagation(); SupabaseService.incrementLoadViews(load.id); }}>
                             <Button variant="secondary" size="sm" className="gap-1.5 text-xs">
                               <Phone className="h-3.5 w-3.5" /> {load.contactPhone}
                             </Button>
@@ -310,6 +310,7 @@ export const Overview = () => {
                           <a
                             href={`https://wa.me/${load.contactPhone.replace(/[\s\-\(\)\+]/g, '')}`}
                             target="_blank" rel="noopener noreferrer"
+                            onClick={() => SupabaseService.incrementLoadViews(load.id)}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
                             style={{ backgroundColor: '#25D366' }}
                           >
@@ -371,7 +372,7 @@ export const Overview = () => {
                     <div className="flex gap-2 flex-shrink-0">
                       {canViewContact(truck.userId) && truck.contactPhone ? (
                         <>
-                          <a href={`tel:${truck.contactPhone}`} onClick={e => e.stopPropagation()}>
+                          <a href={`tel:${truck.contactPhone}`} onClick={e => { e.stopPropagation(); SupabaseService.incrementTruckViews(truck.id); }}>
                             <Button variant="secondary" size="sm" className="gap-1.5 text-xs">
                               <Phone className="h-3.5 w-3.5" /> {truck.contactPhone}
                             </Button>
@@ -379,6 +380,7 @@ export const Overview = () => {
                           <a
                             href={`https://wa.me/${truck.contactPhone.replace(/[\s\-\(\)\+]/g, '')}`}
                             target="_blank" rel="noopener noreferrer"
+                            onClick={() => SupabaseService.incrementTruckViews(truck.id)}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
                             style={{ backgroundColor: '#25D366' }}
                           >
